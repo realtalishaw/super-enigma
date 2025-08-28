@@ -1,8 +1,0 @@
-```json
-{
-  "name": "Stripe Charge to Slack",
-  "description": "Send Slack message when Stripe charge succeeds over $100",
-  "triggers": [
-    {
-      "id": "stripe_charge_trigger",
-      "type": "stripe_STRIPE_CHECKOUT_SESSION_COMPLETED_TR…

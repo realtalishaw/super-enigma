@@ -1,6 +1,0 @@
-```json
-{
-  "id": "calendar-discord-reminder",
-  "initial_message": "I'll help you set up Discord reminders for Google Calendar events.",
-  "context": "Send a Discord reminder 10 minutes before any Google Calendar event starts",
-  "messages…

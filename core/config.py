@@ -38,6 +38,36 @@ class Settings(BaseSettings):
         description="Anthropic API key for Claude LLM access"
     )
     
+    # Groq API settings
+    groq_api_key: Optional[str] = Field(
+        default=None,
+        description="Groq API key for fast LLM tool retrieval"
+    )
+    
+    # Tool selection limits for RAG workflow
+    max_triggers: int = Field(
+        default=10,
+        description="Maximum number of triggers to include in Claude context"
+    )
+    max_actions: int = Field(
+        default=20,
+        description="Maximum number of actions to include in Claude context"
+    )
+    max_providers: int = Field(
+        default=8,
+        description="Maximum number of providers to include in Claude context"
+    )
+    
+    # Claude API rate limiting
+    claude_rate_limit_delay: float = Field(
+        default=2.0,
+        description="Base delay in seconds between Claude API retries"
+    )
+    max_rate_limit_delay: float = Field(
+        default=30.0,
+        description="Maximum delay in seconds between Claude API retries"
+    )
+    
     # Application settings
     debug: bool = Field(
         default=False,
