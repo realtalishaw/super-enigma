@@ -1,0 +1,20 @@
+{
+  "success": false,
+  "latency_ms": 27571,
+  "schema_valid": false,
+  "catalog_compliant": false,
+  "lint_errors": 0,
+  "lint_warnings": 0,
+  "confidence": 0.0,
+  "raw_response_preview": "```json\n{\n  \"name\": \"Create Todoist task from new Notion page\",\n  \"description\": \"Creates a Todoist task when a new page is created in Notion, using the page title\",\n  \"inputs\": {},\n  \"triggers\": [\n    {\n      \"type\": \"trigger\",\n      \"trig\u2026",
+  "input": {
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": [
+      "notion",
+      "todoist"
+    ],
+    "prompt_summary": "Create a Todoist task when a new page is created in Notion, using the page title."
+  },
+  "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+}

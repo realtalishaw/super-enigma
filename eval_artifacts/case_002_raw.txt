@@ -1,0 +1,7 @@
+```json
+{
+  "template": {
+    "version": "1.0",
+    "name": "Post Slack message when Trello card added to Backlog",
+    "description": "Sends a Slack message to #backlog when a new card is added to the Backlog list in Trello",
+    "triggers…

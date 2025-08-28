@@ -1,0 +1,9 @@
+```json
+{
+  "name": "Create Todoist task from new Notion page",
+  "description": "Creates a Todoist task when a new page is created in Notion, using the page title",
+  "inputs": {},
+  "triggers": [
+    {
+      "type": "trigger",
+      "trig…

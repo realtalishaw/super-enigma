@@ -1,0 +1,40 @@
+[
+  {
+    "prompt": "When a new email arrives in Gmail with label 'invoices', add a row to Google Sheets with the sender, subject, and date.",
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": ["gmail", "google_sheets"]
+  },
+  {
+    "prompt": "Post a Slack message to #backlog whenever a new Trello card is added to the 'Backlog' list.",
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": ["slack", "trello"]
+  },
+  {
+    "prompt": "When a new video is uploaded to YouTube on my channel, post the title and link to Twitter.",
+    "workflow_type": "template",
+    "complexity": "medium",
+    "selected_apps": ["youtube", "twitter"]
+  },
+  {
+    "prompt": "Send a Discord reminder 10 minutes before any Google Calendar event starts.",
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": ["google_calendar", "discord"]
+  },
+  {
+    "prompt": "Create a Todoist task when a new page is created in Notion, using the page title.",
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": ["notion", "todoist"]
+  },
+  {
+    "prompt": "When a Stripe charge succeeds over $100, send a Slack message to #sales with the customer and amount.",
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": ["stripe", "slack"]
+  }
+]
+
+

@@ -1,0 +1,47 @@
+{
+  "schema_type": "template",
+  "workflow": {
+    "name": "Daily Data Backup",
+    "description": "Automatically backup data every day at 2 AM",
+    "triggers": [
+      {
+        "id": "daily_backup_trigger",
+        "type": "schedule_based",
+        "toolkit_slug": "the composio integration slug i.e. gmail",
+        "composio_trigger_slug": "the composio trigger slug i.e gmail_new_gmail_message",
+        "schedule": {
+          "cron_expr": "0 2 * * *",
+          "timezone": "UTC"
+        },
+        "requires_auth": false
+      }
+    ],
+    "actions": [
+      {
+        "id": "backup_action",
+        "toolkit_slug": "real integration composio slug",
+        "action_name": "real integration tool slug",
+        "required_inputs": [
+          {
+            "name": "backup_path",
+            "source": "/backups/daily_{{ trigger.timestamp }}",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "depends_on": ["daily_backup_trigger"],
+        "requires_auth": true
+      }
+    ]
+  },
+
+  "missing_information": [
+    {
+      "field": "backup_retention_days",
+      "prompt": "How many days should backups be retained?",
+      "type": "integer",
+      "required": true
+    }
+  ],
+  "confidence": 90
+}

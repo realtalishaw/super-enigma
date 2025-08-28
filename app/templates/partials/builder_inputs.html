@@ -1,0 +1,81 @@
+{% if schema.fields %}
+    <form class="space-y-4">
+        {% for field in schema.fields %}
+        <div>
+            <label for="{{ field.key }}" class="block text-sm font-medium text-gray-700 mb-1">
+                {{ field.label }}
+                {% if field.required %}
+                    <span class="text-red-500">*</span>
+                {% endif %}
+            </label>
+            
+            {% if field.type == 'select' %}
+                <select 
+                    id="{{ field.key }}" 
+                    name="{{ field.key }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    {% if field.required %}required{% endif %}
+                >
+                    <option value="">Select an option</option>
+                    {% if field.options %}
+                        {% for option in field.options %}
+                        <option value="{{ option.value }}">{{ option.label }}</option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            {% elif field.type == 'textarea' %}
+                <textarea 
+                    id="{{ field.key }}" 
+                    name="{{ field.key }}"
+                    rows="3"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    {% if field.required %}required{% endif %}
+                    placeholder="{{ field.placeholder if field.placeholder else '' }}"
+                ></textarea>
+            {% elif field.type == 'boolean' %}
+                <div class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="{{ field.key }}" 
+                        name="{{ field.key }}"
+                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    >
+                    <label for="{{ field.key }}" class="ml-2 text-sm text-gray-700">
+                        {{ field.description if field.description else field.label }}
+                    </label>
+                </div>
+            {% elif field.type == 'secret' %}
+                <input 
+                    type="password" 
+                    id="{{ field.key }}" 
+                    name="{{ field.key }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    {% if field.required %}required{% endif %}
+                    placeholder="Enter {{ field.label.lower() }}"
+                >
+            {% else %}
+                <input 
+                    type="{{ field.type if field.type != 'string' else 'text' }}" 
+                    id="{{ field.key }}" 
+                    name="{{ field.key }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    {% if field.required %}required{% endif %}
+                    placeholder="{{ field.placeholder if field.placeholder else 'Enter ' + field.label.lower() }}"
+                >
+            {% endif %}
+            
+            {% if field.description %}
+                <p class="mt-1 text-sm text-gray-500">{{ field.description }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </form>
+{% else %}
+    <div class="text-center py-8 text-gray-500">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p class="mt-2">No inputs required</p>
+        <p class="text-sm">This workflow doesn't need any configuration</p>
+    </div>
+{% endif %}

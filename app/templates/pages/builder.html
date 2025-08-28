@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Builder - Weave{% endblock %}
+
+{% block extra_head %}
+<style>
+    .builder-grid {
+        display: grid;
+        grid-template-columns: 300px 1fr 300px;
+        gap: 1rem;
+        height: calc(100vh - 200px);
+    }
+    
+    @media (max-width: 1024px) {
+        .builder-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto auto;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-full mx-auto">
+    <!-- Top controls bar -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <h1 class="text-2xl font-bold text-gray-900">Workflow Builder</h1>
+                {% if workflow %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                        {% if workflow.status == 'draft' %}bg-gray-100 text-gray-800
+                        {% elif workflow.status == 'running' %}bg-green-100 text-green-800
+                        {% elif workflow.status == 'completed' %}bg-blue-100 text-blue-800
+                        {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                        {{ workflow.status|title }}
+                    </span>
+                {% endif %}
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <button
+                    onclick="showWorkflowMessage('run')"
+                    class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+                    {% if workflow and workflow.status == 'running' %}disabled{% endif %}
+                >
+                    Run
+                </button>
+                <button
+                    onclick="showWorkflowMessage('stop')"
+                    class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+                    {% if not workflow or workflow.status != 'running' %}disabled{% endif %}
+                >
+                    Stop
+                </button>
+                <button
+                    onclick="saveWorkflow()"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                    Save
+                </button>
+                <button
+                    onclick="location.reload()"
+                    class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                    Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three-pane layout -->
+    <div class="builder-grid">
+        <!-- Left: Inputs form -->
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Inputs</h2>
+            <div id="inputs-panel">
+                <!-- Inputs will be loaded here via HTMX -->
+                <div hx-get="/partials/builder/inputs/{{ workflow_id }}" 
+                     hx-trigger="load"
+                     hx-target="this"
+                     hx-swap="innerHTML">
+                    <div class="text-center py-8">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                        <p class="mt-2 text-sm text-gray-600">Loading inputs...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Node canvas -->
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Workflow Graph</h2>
+            <div id="graph-panel" class="border-2 border-dashed border-gray-300 rounded-lg min-h-full">
+                <!-- Graph will be loaded here via HTMX -->
+                <div hx-get="/partials/builder/graph/{{ workflow_id }}" 
+                     hx-trigger="load"
+                     hx-target="this"
+                     hx-swap="innerHTML">
+                    <div class="text-center py-8">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                        <p class="mt-2 text-sm text-gray-600">Loading graph...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Outputs/logs -->
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Outputs & Logs</h2>
+            <div id="logs-panel">
+                <!-- Logs will be loaded here via HTMX -->
+                <div hx-get="/partials/builder/logs/{{ workflow_id }}" 
+                     hx-trigger="load"
+                     hx-target="this"
+                     hx-swap="innerHTML">
+                    <div class="text-center py-8">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                        <p class="mt-2 text-sm text-gray-600">Loading logs...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-refresh logs while workflow is running
+function startLogsPolling() {
+    const logsPanel = document.getElementById('logs-panel');
+    if (logsPanel) {
+        logsPanel.setAttribute('hx-trigger', 'every 3s');
+        logsPanel.setAttribute('hx-get', '/partials/builder/logs/{{ workflow_id }}');
+        logsPanel.setAttribute('hx-swap', 'innerHTML');
+    }
+}
+
+// Save workflow function
+function saveWorkflow() {
+    // Show message that workflows are not available
+    showWorkflowMessage('save');
+}
+
+function showWorkflowMessage(action) {
+    const actionText = action === 'run' ? 'running' : action === 'stop' ? 'stopping' : 'saving';
+    alert(`Workflow ${actionText} is not available in this version. Please check back later.`);
+}
+
+// Start polling if workflow is running
+{% if workflow and workflow.status == 'running' %}
+startLogsPolling();
+{% endif %}
+</script>
+{% endblock %}

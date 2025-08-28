@@ -1,0 +1,150 @@
+{
+  "aggregate": {
+    "count": 6,
+    "pass_at_1": 0.0,
+    "schema_valid_rate": 0.0,
+    "catalog_compliance_rate": 0.0,
+    "avg_lint_errors": 0.0,
+    "avg_lint_warnings": 0.0,
+    "p50_latency_ms": 24139,
+    "p95_latency_ms": 28658,
+    "pass_count": 0,
+    "fail_count": 6,
+    "failure_summary": {
+      "total": 6,
+      "passed": 0,
+      "failed": 6,
+      "parse_failures": 6,
+      "schema_failures": 6,
+      "catalog_failures": 6,
+      "lint_failure_cases": 0,
+      "top_lint_error_codes": []
+    }
+  },
+  "results": [
+    {
+      "success": false,
+      "latency_ms": 24139,
+      "schema_valid": false,
+      "catalog_compliant": false,
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "confidence": 0.0,
+      "raw_response_preview": "```json\n{\n  \"name\": \"Email Invoice Tracker\",\n  \"description\": \"When a new email arrives in Gmail with label 'invoices', track it\",\n  \"config\": {},\n  \"setup\": {},\n  \"inputs\": {},\n  \"triggers\": [\n    {\n      \"id\": \"gmail_GMAIL_NEW_GMAIL_MESSA\u2026",
+      "input": {
+        "workflow_type": "template",
+        "complexity": "simple",
+        "selected_apps": [
+          "gmail",
+          "google_sheets"
+        ],
+        "prompt_summary": "When a new email arrives in Gmail with label 'invoices', add a row to Google Sheets with the sender, subject, and date."
+      },
+      "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+    },
+    {
+      "success": false,
+      "latency_ms": 28658,
+      "schema_valid": false,
+      "catalog_compliant": false,
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "confidence": 0.0,
+      "raw_response_preview": "```json\n{\n  \"template\": {\n    \"version\": \"1.0\",\n    \"name\": \"Post Slack message when Trello card added to Backlog\",\n    \"description\": \"Sends a Slack message to #backlog when a new card is added to the Backlog list in Trello\",\n    \"triggers\u2026",
+      "input": {
+        "workflow_type": "template",
+        "complexity": "simple",
+        "selected_apps": [
+          "slack",
+          "trello"
+        ],
+        "prompt_summary": "Post a Slack message to #backlog whenever a new Trello card is added to the 'Backlog' list."
+      },
+      "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+    },
+    {
+      "success": false,
+      "latency_ms": 22932,
+      "schema_valid": false,
+      "catalog_compliant": false,
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "confidence": 0.0,
+      "raw_response_preview": "```json\n{\n  \"name\": \"YouTube to Twitter\",\n  \"description\": \"When a new video is uploaded to YouTube on my channel, post the title and link to Twitter\",\n  \"blocks\": [\n    {\n      \"type\": \"manual_trigger\",\n      \"params\": {}\n    },\n    {\n    \u2026",
+      "input": {
+        "workflow_type": "template",
+        "complexity": "medium",
+        "selected_apps": [
+          "youtube",
+          "twitter"
+        ],
+        "prompt_summary": "When a new video is uploaded to YouTube on my channel, post the title and link to Twitter."
+      },
+      "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+    },
+    {
+      "success": false,
+      "latency_ms": 22633,
+      "schema_valid": false,
+      "catalog_compliant": false,
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "confidence": 0.0,
+      "raw_response_preview": "```json\n{\n  \"id\": \"calendar-discord-reminder\",\n  \"initial_message\": \"I'll help you set up Discord reminders for Google Calendar events.\",\n  \"context\": \"Send a Discord reminder 10 minutes before any Google Calendar event starts\",\n  \"messages\u2026",
+      "input": {
+        "workflow_type": "template",
+        "complexity": "simple",
+        "selected_apps": [
+          "google_calendar",
+          "discord"
+        ],
+        "prompt_summary": "Send a Discord reminder 10 minutes before any Google Calendar event starts."
+      },
+      "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+    },
+    {
+      "success": false,
+      "latency_ms": 27571,
+      "schema_valid": false,
+      "catalog_compliant": false,
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "confidence": 0.0,
+      "raw_response_preview": "```json\n{\n  \"name\": \"Create Todoist task from new Notion page\",\n  \"description\": \"Creates a Todoist task when a new page is created in Notion, using the page title\",\n  \"inputs\": {},\n  \"triggers\": [\n    {\n      \"type\": \"trigger\",\n      \"trig\u2026",
+      "input": {
+        "workflow_type": "template",
+        "complexity": "simple",
+        "selected_apps": [
+          "notion",
+          "todoist"
+        ],
+        "prompt_summary": "Create a Todoist task when a new page is created in Notion, using the page title."
+      },
+      "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+    },
+    {
+      "success": false,
+      "latency_ms": 28254,
+      "schema_valid": false,
+      "catalog_compliant": false,
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "confidence": 0.0,
+      "raw_response_preview": "```json\n{\n  \"name\": \"Stripe Charge to Slack\",\n  \"description\": \"Send Slack message when Stripe charge succeeds over $100\",\n  \"triggers\": [\n    {\n      \"id\": \"stripe_charge_trigger\",\n      \"type\": \"stripe_STRIPE_CHECKOUT_SESSION_COMPLETED_TR\u2026",
+      "input": {
+        "workflow_type": "template",
+        "complexity": "simple",
+        "selected_apps": [
+          "stripe",
+          "slack"
+        ],
+        "prompt_summary": "When a Stripe charge succeeds over $100, send a Slack message to #sales with the customer and amount."
+      },
+      "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+    }
+  ],
+  "run": {
+    "id": "20250827-225528",
+    "save_dir": "eval_artifacts"
+  }
+}

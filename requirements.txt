@@ -1,0 +1,27 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+jinja2==3.1.2
+python-multipart==0.0.6
+httpx==0.25.2
+python-dotenv==1.0.0
+
+# Database dependencies
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.13.0
+greenlet==3.2.4
+
+# Redis
+redis==5.0.1
+
+# Pydantic and settings
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Utilities
+jsonschema==4.20.0
+PyYAML==6.0.1
+
+# HTTP client for API calls
+httpx==0.25.2

@@ -1,0 +1,98 @@
+{
+  "workflow_id": "simple_email_workflow",
+  "version": "1.0.0",
+  "name": "Simple Email Notification",
+  "description": "Send email when new lead is created",
+  "triggers": [
+    {
+      "local_id": "new_lead_trigger",
+      "toolkit_slug": "salesforce",
+      "trigger_id": "new_lead",
+      "type": "event",
+      "delivery": "webhook",
+      "configuration": {
+        "object_type": "Lead"
+      },
+      "connection_hint": "salesforce_conn",
+      "exec": {
+        "provider": "salesforce",
+        "trigger_slug": "new_lead",
+        "configuration": {
+          "object_type": "Lead"
+        },
+        "connection_id": "salesforce_conn"
+      },
+      "trigger_instance_id": "be678be5fafc2f649f607088973183b372996ace9c0c711973c6862ed70fecea"
+    }
+  ],
+  "actions": [
+    {
+      "local_id": "send_email",
+      "toolkit_slug": "sendgrid",
+      "action_id": "send_email",
+      "required_inputs": {
+        "to": "$.email",
+        "subject": "Welcome $.first_name + ' ' + $.last_name!",
+        "body": "Hi $.first_name + ' ' + $.last_name, thanks for your interest!"
+      },
+      "optional_inputs": {
+        "from": "noreply@company.com"
+      },
+      "connection_hint": "sendgrid_conn",
+      "exec": {
+        "provider": "sendgrid",
+        "action_slug": "send_email",
+        "connection_id": "sendgrid_conn",
+        "required_inputs": {
+          "to": "$.email",
+          "subject": "Welcome $.first_name + ' ' + $.last_name!",
+          "body": "Hi $.first_name + ' ' + $.last_name, thanks for your interest!"
+        },
+        "optional_inputs": {
+          "from": "noreply@company.com"
+        },
+        "retry": {
+          "max_attempts": 3,
+          "backoff_multiplier": 2.0,
+          "initial_delay_ms": 1000
+        },
+        "timeout_ms": 30000,
+        "rate_limit": {
+          "requests_per_minute": 60
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "from_ref": "new_lead_trigger",
+      "to_ref": "send_email",
+      "when": "success"
+    }
+  ],
+  "missing_information": [
+    {
+      "field": "lead_email",
+      "prompt": "What field contains the lead's email address?",
+      "type": "string",
+      "required": true
+    },
+    {
+      "field": "lead_name",
+      "prompt": "What field contains the lead's name?",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "policies": {
+    "retry": {
+      "max_attempts": 3,
+      "backoff_multiplier": 2.0,
+      "initial_delay_ms": 1000
+    },
+    "timeout_ms": 30000,
+    "rate_limit": {
+      "requests_per_minute": 60
+    }
+  }
+}

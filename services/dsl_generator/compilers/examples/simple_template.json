@@ -1,0 +1,56 @@
+{
+  "workflow_id": "simple_email_workflow",
+  "version": "1.0.0",
+  "name": "Simple Email Notification",
+  "description": "Send email when new lead is created",
+  "triggers": [
+    {
+      "local_id": "new_lead_trigger",
+      "toolkit_slug": "salesforce",
+      "trigger_id": "new_lead",
+      "type": "event",
+      "delivery": "webhook",
+      "configuration": {
+        "object_type": "Lead"
+      },
+      "connection_hint": "salesforce_conn"
+    }
+  ],
+  "actions": [
+    {
+      "local_id": "send_email",
+      "toolkit_slug": "sendgrid",
+      "action_id": "send_email",
+      "required_inputs": {
+        "to": "{{lead_email}}",
+        "subject": "Welcome {{lead_name}}!",
+        "body": "Hi {{lead_name}}, thanks for your interest!"
+      },
+      "optional_inputs": {
+        "from": "noreply@company.com"
+      },
+      "connection_hint": "sendgrid_conn"
+    }
+  ],
+  "routes": [
+    {
+      "from_ref": "new_lead_trigger",
+      "to_ref": "send_email",
+      "when": "success"
+    }
+  ],
+  "missing_information": [
+    {
+      "field": "lead_email",
+      "prompt": "What field contains the lead's email address?",
+      "type": "string",
+      "required": true
+    },
+    {
+      "field": "lead_name",
+      "prompt": "What field contains the lead's name?",
+      "type": "string",
+      "required": true
+    }
+  ]
+}

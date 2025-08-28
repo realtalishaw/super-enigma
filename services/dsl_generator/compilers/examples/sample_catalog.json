@@ -1,0 +1,112 @@
+{
+  "providers": [
+    {
+      "slug": "salesforce",
+      "name": "Salesforce",
+      "description": "CRM and sales automation platform",
+      "toolkits": [
+        {
+          "slug": "salesforce",
+          "name": "Salesforce Core",
+          "triggers": [
+            {
+              "slug": "new_lead",
+              "name": "New Lead Created",
+              "description": "Triggered when a new lead is created",
+              "supported_delivery": ["webhook", "polling"],
+              "params": {
+                "object_type": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Type of object to monitor"
+                }
+              }
+            }
+          ],
+          "actions": [
+            {
+              "slug": "create_lead",
+              "name": "Create Lead",
+              "description": "Create a new lead in Salesforce",
+              "paramSpec": {
+                "first_name": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Lead's first name"
+                },
+                "last_name": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Lead's last name"
+                },
+                "email": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Lead's email address"
+                },
+                "company": {
+                  "type": "string",
+                  "required": false,
+                  "description": "Lead's company"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "sendgrid",
+      "name": "SendGrid",
+      "description": "Email delivery service",
+      "toolkits": [
+        {
+          "slug": "sendgrid",
+          "name": "SendGrid Core",
+          "triggers": [],
+          "actions": [
+            {
+              "slug": "send_email",
+              "name": "Send Email",
+              "description": "Send an email via SendGrid",
+              "paramSpec": {
+                "to": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Recipient email address"
+                },
+                "subject": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Email subject line"
+                },
+                "body": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Email body content"
+                },
+                "from": {
+                  "type": "string",
+                  "required": false,
+                  "default": "noreply@company.com",
+                  "description": "Sender email address"
+                }
+              },
+              "policy": {
+                "retry": {
+                  "max_attempts": 3,
+                  "backoff_multiplier": 2.0,
+                  "initial_delay_ms": 1000
+                },
+                "timeout_ms": 30000,
+                "rate_limit": {
+                  "requests_per_minute": 60
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

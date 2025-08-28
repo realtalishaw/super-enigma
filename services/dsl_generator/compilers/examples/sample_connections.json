@@ -1,0 +1,20 @@
+{
+  "salesforce_conn": {
+    "provider": "salesforce",
+    "connection_id": "salesforce_conn",
+    "scopes": ["read_leads", "write_leads"],
+    "metadata": {
+      "instance_url": "https://company.salesforce.com",
+      "api_version": "58.0"
+    }
+  },
+  "sendgrid_conn": {
+    "provider": "sendgrid",
+    "connection_id": "sendgrid_conn",
+    "scopes": ["send_emails"],
+    "metadata": {
+      "api_key": "SG.xxxxxxxxxxxxx",
+      "from_email": "noreply@company.com"
+    }
+  }
+}

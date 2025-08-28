@@ -1,0 +1,119 @@
+<div class="bg-white rounded-lg shadow-md p-6">
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Workflow Suggestions</h2>
+        <p class="text-gray-600">
+            Based on your prompt: <span class="font-medium">"{{ prompt }}"</span>
+        </p>
+        {% if integrations %}
+            <div class="mt-2">
+                <span class="text-sm text-gray-500">Using integrations: </span>
+                {% for integration in integrations %}
+                    <span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs mr-2">
+                        {{ integration }}
+                    </span>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    {% if suggestions %}
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {% for suggestion in suggestions %}
+            <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ suggestion.title }}</h3>
+                    <p class="text-gray-600 text-sm">{{ suggestion.description }}</p>
+                </div>
+                
+                {% if suggestion.requiredIntegrationIds %}
+                <div class="mb-4">
+                    <p class="text-xs text-gray-500 mb-2">Required integrations:</p>
+                    <div class="flex flex-wrap gap-1">
+                        {% for integration_id in suggestion.requiredIntegrationIds %}
+                        <span class="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                            {{ integration_id }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if suggestion.stepsPreview %}
+                <div class="mb-4">
+                    <details class="text-sm">
+                        <summary class="cursor-pointer text-blue-600 hover:text-blue-700 font-medium">
+                            Preview steps
+                        </summary>
+                        <div class="mt-2 space-y-1">
+                            {% for step in suggestion.stepsPreview %}
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                <span class="text-gray-600">{{ step.label }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                </div>
+                {% endif %}
+                
+                <div class="flex space-x-2">
+                    <button
+                        onclick="showWorkflowMessage()"
+                        class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                        Use This
+                    </button>
+                    <button
+                        onclick="toggleStepsPreview('{{ suggestion.id }}')"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm"
+                    >
+                        Preview
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mt-8 text-center">
+            <a 
+                href="/suggestions?prompt={{ prompt }}&integrations={{ integrations|join(',') }}"
+                class="inline-block bg-gray-600 text-white px-6 py-3 rounded-md hover:bg-gray-700 transition-colors font-medium"
+            >
+                Continue to Suggestions Page
+            </a>
+        </div>
+    {% else %}
+        <div class="text-center py-12">
+            <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <h3 class="mt-4 text-lg font-medium text-gray-900">No suggestions found</h3>
+            <p class="mt-2 text-gray-600">
+                We couldn't generate workflow suggestions with the current prompt and integrations.
+            </p>
+            <button
+                hx-post="/partials/suggestions"
+                hx-vals='{"prompt": "{{ prompt }}", "integrations": "{{ integrations|join(',') }}"}'
+                hx-target="#suggestions-preview"
+                hx-swap="innerHTML"
+                class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                hx-indicator=".htmx-indicator"
+            >
+                Regenerate
+            </button>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleStepsPreview(suggestionId) {
+    const details = document.querySelector(`[data-suggestion-id="${suggestionId}"] details`);
+    if (details) {
+        details.open = !details.open;
+    }
+}
+
+function showWorkflowMessage() {
+    alert("Workflows are not available in this version. Please check back later or use the suggestions page.");
+}
+</script>

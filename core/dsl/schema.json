@@ -1,0 +1,497 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.services/dsl-schema-v2.json",
+  "title": "Weave Workflow DSL Schema v2",
+  "description": "Comprehensive schema supporting template, executable, and DAG workflow formats with advanced flow control",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/TemplateSchema" },
+    { "$ref": "#/$defs/ExecutableSchema" },
+    { "$ref": "#/$defs/DAGSchema" }
+  ],
+  "$defs": {
+    "TemplateSchema": {
+      "type": "object",
+      "required": ["schema_type", "workflow"],
+      "properties": {
+        "schema_type": {
+          "type": "string",
+          "enum": ["template"],
+          "description": "Schema type identifier"
+        },
+        "workflow": { "$ref": "#/$defs/WorkflowTemplate" },
+        "missing_information": {
+          "type": "array",
+          "description": "List of required information the user must provide",
+          "items": { "$ref": "#/$defs/MissingInformation" }
+        },
+        "confidence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Confidence score (1-100)"
+        }
+      }
+    },
+    "ExecutableSchema": {
+      "type": "object",
+      "required": ["schema_type", "workflow", "connections"],
+      "properties": {
+        "schema_type": {
+          "type": "string",
+          "enum": ["executable"],
+          "description": "Schema type identifier"
+        },
+        "workflow": { "$ref": "#/$defs/WorkflowTemplate" },
+        "connections": {
+          "type": "array",
+          "description": "Required connections for this workflow",
+          "items": { "$ref": "#/$defs/ConnectionRef" }
+        }
+      }
+    },
+    "DAGSchema": {
+      "type": "object",
+      "required": ["schema_type", "nodes", "edges"],
+      "properties": {
+        "schema_type": {
+          "type": "string",
+          "enum": ["dag"],
+          "description": "Schema type identifier"
+        },
+        "nodes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DAGNode" }
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DAGEdge" }
+        },
+        "metadata": { "$ref": "#/$defs/WorkflowMetadata" }
+      }
+    },
+    "WorkflowTemplate": {
+      "type": "object",
+      "required": ["name", "description", "triggers", "actions"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TriggerTemplate" }
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ActionTemplate" }
+        },
+        "flow_control": { "$ref": "#/$defs/FlowControl" }
+      }
+    },
+    "WorkflowExecutable": {
+      "type": "object",
+      "required": ["name", "description", "triggers", "actions"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TriggerTemplate" }
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ActionTemplate" }
+        },
+        "flow_control": { "$ref": "#/$defs/FlowControl" }
+      }
+    },
+    "TriggerTemplate": {
+      "type": "object",
+      "required": ["id", "type", "toolkit_slug"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["event_based", "schedule_based"]
+        },
+        "toolkit_slug": { "type": "string" },
+        "composio_trigger_slug": { "type": "string" },
+        "configuration": { "type": "object" },
+        "filters": { "type": "object" },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requires_auth": { "type": "boolean", "default": true },
+        "schedule": {
+          "type": "object",
+          "description": "Required for schedule_based triggers",
+          "properties": {
+            "cron_expr": {
+              "type": "string",
+              "description": "Cron expression (5 or 6 field format like '0 */3 * * *' for every 3 hours)"
+            },
+            "timezone": {
+              "type": "string",
+              "description": "Timezone for the schedule (e.g., 'UTC', 'America/New_York')",
+              "default": "UTC"
+            }
+          },
+          "required": ["cron_expr"],
+          "if": {
+            "properties": { "type": { "const": "schedule_based" } }
+          },
+          "then": { "required": ["cron_expr"] }
+        }
+      }
+    },
+    "TriggerExecutable": {
+      "allOf": [
+        { "$ref": "#/$defs/TriggerTemplate" },
+        {
+          "required": ["composio_trigger_slug", "configuration"],
+          "properties": {
+            "connection_id": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "ActionTemplate": {
+      "type": "object",
+      "required": ["id", "toolkit_slug", "action_name"],
+      "properties": {
+        "id": { "type": "string" },
+        "toolkit_slug": { "type": "string" },
+        "action_name": { "type": "string" },
+        "required_inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/InputParameter" }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requires_auth": { "type": "boolean", "default": true },
+        "conditional": { "$ref": "#/$defs/ConditionalLogic" }
+      }
+    },
+    "ActionExecutable": {
+      "allOf": [
+        { "$ref": "#/$defs/ActionTemplate" },
+        {
+          "required": ["required_inputs"],
+          "properties": {
+            "connection_id": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "InputParameter": {
+      "type": "object",
+      "required": ["name", "source"],
+      "properties": {
+        "name": { "type": "string" },
+        "source": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/DataReference" }
+          ]
+        },
+        "type": { "type": "string" },
+        "required": { "type": "boolean", "default": true }
+      }
+    },
+    "DataReference": {
+      "type": "object",
+      "required": ["trigger_id", "field_path"],
+      "properties": {
+        "trigger_id": { "type": "string" },
+        "field_path": { "type": "string" },
+        "default_value": { "type": "string" }
+      }
+    },
+    "FlowControl": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ConditionalLogic" }
+        },
+        "parallel_execution": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "retry_policy": { "$ref": "#/$defs/RetryPolicy" }
+      }
+    },
+    "ConditionalLogic": {
+      "type": "object",
+      "required": ["condition", "if_true", "if_false"],
+      "properties": {
+        "condition": {
+          "oneOf": [
+            { "$ref": "#/$defs/ComparisonCondition" },
+            { "$ref": "#/$defs/LogicalCondition" },
+            { "type": "string" }
+          ]
+        },
+        "if_true": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "if_false": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        }
+      }
+    },
+    "ComparisonCondition": {
+      "type": "object",
+      "required": ["operator", "left", "right"],
+      "properties": {
+        "operator": {
+          "type": "string",
+          "enum": ["==", "!=", ">", "<", ">=", "<=", "contains", "starts_with", "ends_with"]
+        },
+        "left": { "$ref": "#/$defs/DataReference" },
+        "right": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" }
+          ]
+        }
+      }
+    },
+    "LogicalCondition": {
+      "type": "object",
+      "required": ["operator", "conditions"],
+      "properties": {
+        "operator": {
+          "type": "string",
+          "enum": ["AND", "OR", "NOT"]
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ConditionalLogic" }
+        }
+      }
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "properties": {
+        "max_retries": { "type": "integer", "minimum": 0 },
+        "retry_delay": { "type": "integer", "minimum": 1000 },
+        "backoff_multiplier": { "type": "number", "minimum": 1.0 }
+      }
+    },
+
+    "ConnectionRef": {
+      "type": "object",
+      "required": ["toolkit_slug", "connection_id"],
+      "properties": {
+        "toolkit_slug": { "type": "string" },
+        "connection_id": { "type": "string" }
+      }
+    },
+    "MissingInformation": {
+      "type": "object",
+      "required": ["field", "prompt", "type"],
+      "properties": {
+        "field": { "type": "string" },
+        "prompt": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean", "default": true }
+      }
+    },
+    "WorkflowMetadata": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "author": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "DAGNode": {
+      "type": "object",
+      "required": ["id", "type", "data"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["trigger", "action", "gateway_if", "gateway_parallel", "end"]
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "data": {
+          "oneOf": [
+            { "$ref": "#/$defs/TriggerNodeData" },
+            { "$ref": "#/$defs/ActionNodeData" },
+            { "$ref": "#/$defs/GatewayNodeData" }
+          ]
+        }
+      }
+    },
+    "DAGEdge": {
+      "type": "object",
+      "required": ["source", "target"],
+      "properties": {
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "sourceHandle": { "type": "string" },
+        "targetHandle": { "type": "string" },
+        "condition": {
+          "type": "string",
+          "description": "Simple condition string like 'talisha@alcemi.dev in inputs.sender' or 'else'"
+        }
+      }
+    },
+    "TriggerNodeData": {
+      "type": "object",
+      "required": ["trigger_type", "toolkit_slug", "composio_trigger_slug"],
+      "properties": {
+        "trigger_type": { 
+          "type": "string",
+          "description": "Human-readable trigger type like 'gmail_message_received'"
+        },
+        "toolkit_slug": { 
+          "type": "string",
+          "description": "Toolkit identifier like 'gmail'"
+        },
+        "composio_trigger_slug": { 
+          "type": "string",
+          "description": "Composio trigger slug like 'GMAIL_MESSAGE_RECEIVED'"
+        },
+        "filters": { 
+          "type": "object",
+          "description": "Trigger filters for conditional activation"
+        },
+        "configuration": { 
+          "type": "object",
+          "description": "Trigger configuration parameters"
+        },
+        "requires_auth": { 
+          "type": "boolean",
+          "default": true,
+          "description": "Whether authentication is required"
+        }
+      }
+    },
+    "ActionNodeData": {
+      "type": "object",
+      "required": ["tool", "action", "connection_id", "requires_auth", "input_template"],
+      "properties": {
+        "tool": { 
+          "type": "string",
+          "description": "Tool category like 'gmail', 'slack', 'notion'"
+        },
+        "action": { 
+          "type": "string",
+          "description": "Specific action slug like 'GMAIL_SEND_EMAIL'"
+        },
+        "connection_id": { 
+          "type": "string",
+          "description": "Composio connection ID like 'ca_xxx'"
+        },
+        "requires_auth": { 
+          "type": "boolean",
+          "description": "Whether authentication is required"
+        },
+        "input_template": { 
+          "$ref": "#/$defs/InputTemplate",
+          "description": "Input parameters for the action"
+        },
+        "output_vars": { 
+          "type": "object",
+          "description": "Output variable mapping like {'message_id': 'id'}"
+        },
+        "retry": { 
+          "$ref": "#/$defs/RetryPolicy",
+          "description": "Retry configuration for the action"
+        },
+        "timeout_ms": { 
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Timeout in milliseconds"
+        }
+      }
+    },
+    "GatewayNodeData": {
+      "type": "object",
+      "required": ["gateway_type"],
+      "properties": {
+        "gateway_type": {
+          "type": "string",
+          "enum": ["if", "parallel", "join"],
+          "description": "Type of gateway node"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the gateway"
+        },
+        "branches": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Available branches for this gateway"
+        },
+        "else_to": {
+          "type": "string",
+          "description": "Default branch when no conditions match"
+        }
+      }
+    },
+    "InputTemplate": {
+      "type": "object",
+      "description": "Input template supporting both static and dynamic values",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" },
+          { "type": "array" },
+          { "type": "null" },
+          { "$ref": "#/$defs/Jinja2Template" }
+        ]
+      }
+    },
+    "Jinja2Template": {
+      "type": "string",
+      "pattern": ".*\\{\\{.*\\}\\}.*",
+      "description": "Jinja2 template string containing {{ }} placeholders"
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "properties": {
+        "retries": { 
+          "type": "integer", 
+          "minimum": 0,
+          "description": "Number of retry attempts"
+        },
+        "backoff": { 
+          "type": "string",
+          "enum": ["linear", "exponential"],
+          "description": "Backoff strategy"
+        },
+        "delay_ms": { 
+          "type": "integer", 
+          "minimum": 100,
+          "description": "Delay between retries in milliseconds"
+        }
+      }
+    }
+  }
+}

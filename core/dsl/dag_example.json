@@ -1,0 +1,86 @@
+{
+  "schema_type": "dag",
+  "nodes": [
+    {
+      "id": "gmail_trigger",
+      "type": "trigger",
+      "position": {
+        "x": 100,
+        "y": 200
+      },
+      "data": {
+        "trigger_type": "gmail_message_received",
+        "toolkit_slug": "gmail",
+        "composio_trigger_slug": "GMAIL_MESSAGE_RECEIVED",
+        "filters": {
+          "label_ids": ["INBOX"],
+          "max_results": 10
+        },
+        "configuration": {
+          "label_ids": ["INBOX"],
+          "max_results": 10
+        },
+        "requires_auth": true
+      }
+    },
+    {
+      "id": "slack_action",
+      "type": "action",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "tool": "slack",
+        "action": "SLACK_SEND_MESSAGE",
+        "connection_id": "ca_slack_67890",
+        "requires_auth": true,
+        "input_template": {
+          "channel": "{{ inputs.channel_id }}",
+          "text": "New email from {{ trigger.sender }}: {{ trigger.subject }}"
+        },
+        "output_vars": {
+          "message_id": "id",
+          "timestamp": "ts"
+        },
+        "retry": {
+          "retries": 3,
+          "backoff": "exponential",
+          "delay_ms": 1000
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "position": {
+        "x": 700,
+        "y": 200
+      },
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "source": "gmail_trigger",
+      "target": "slack_action",
+      "sourceHandle": "output",
+      "targetHandle": "input"
+    },
+    {
+      "source": "slack_action",
+      "target": "end",
+      "sourceHandle": "output",
+      "targetHandle": "input"
+    }
+  ],
+  "metadata": {
+    "name": "Gmail to Slack Notification",
+    "description": "Automatically send Slack notifications when new Gmail messages arrive",
+    "version": "1.0.0",
+    "author": "Workflow Builder",
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T10:00:00Z"
+  }
+}

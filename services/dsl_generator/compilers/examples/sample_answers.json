@@ -1,0 +1,4 @@
+{
+  "lead_email": "$.email",
+  "lead_name": "$.first_name + ' ' + $.last_name"
+}

@@ -1,0 +1,10 @@
+```json
+{
+  "name": "Email Invoice Tracker",
+  "description": "When a new email arrives in Gmail with label 'invoices', track it",
+  "config": {},
+  "setup": {},
+  "inputs": {},
+  "triggers": [
+    {
+      "id": "gmail_GMAIL_NEW_GMAIL_MESSA…

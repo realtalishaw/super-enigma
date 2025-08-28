@@ -1,0 +1,1014 @@
+openapi: 3.0.3
+info:
+  title: Workflow Orchestration API
+  version: 1.0.0
+  description: >
+    Backend APIs for planning, creating, testing, activating, and observing AI-planned
+    workflows that execute via Composio (MCP/SDK). Workflows are represented as DSL JSON.
+servers:
+  - url: https://api.yourdomain.com
+
+tags:
+  - name: Planning
+    description: Endpoints for planning/recommending workflows
+  - name: Workflows
+    description: Create, validate/compile, test-build, activate/pause workflows
+  - name: Runs
+    description: Trigger and observe workflow executions
+  - name: Catalog
+    description: Tool catalog access (cached metadata)
+
+paths:
+  /workflows/plan:
+    post:
+      tags: [Planning]
+      summary: Plan workflows from user input
+      description: >
+        Accepts a natural language request and/or selected apps, consults template library and user
+        preferences, and returns 1–5 **parametric** DSL suggestions with missing fields to fill.
+      operationId: planWorkflows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanRequest'
+      responses:
+        '200':
+          description: Planned suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+        '400':
+          description: Invalid request
+
+  /workflows:
+    post:
+      tags: [Workflows]
+      summary: Create (validate + compile + persist) a concrete workflow
+      description: >
+        Takes a chosen suggestion plus filled inputs (including connection_ids) and creates a **concrete**
+        DSL workflow. Performs schema validation, catalog/param checks, compile, linter. Persists workflow.
+      operationId: createWorkflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+      responses:
+        '201':
+          description: Workflow created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateWorkflowResponse'
+        '400':
+          description: Validation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  /workflows/{workflow_id}:
+    get:
+      tags: [Workflows]
+      summary: Get a workflow by id
+      description: Returns persisted concrete DSL, compiled plan summary, and current status.
+      operationId: getWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResource'
+        '404':
+          description: Not found
+
+  /workflows/{workflow_id}/test-build:
+    post:
+      tags: [Workflows]
+      summary: Test-build (dry-run + auto-repair) a workflow once
+      description: >
+        Executes the workflow once with a test trigger payload. If validation/lint errors occur, attempts
+        minimal auto-repairs (up to max_repair_attempts), re-validates, and retries. Useful for pre-flight checks.
+      operationId: testBuildWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestBuildRequest'
+      responses:
+        '200':
+          description: Test run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestBuildResponse'
+        '400':
+          description: Invalid request
+        '404':
+          description: Workflow not found
+
+  /workflows/{workflow_id}/activate:
+    post:
+      tags: [Workflows]
+      summary: Activate a workflow
+      description: Turns on schedules/pollers/webhooks and marks the workflow as active.
+      operationId: activateWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStateResponse'
+        '404':
+          description: Not found
+
+  /workflows/{workflow_id}/pause:
+    post:
+      tags: [Workflows]
+      summary: Pause a workflow
+      description: Disables schedules/pollers/webhooks and marks the workflow as paused.
+      operationId: pauseWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStateResponse'
+        '404':
+          description: Not found
+
+  /workflows/{workflow_id}/trigger:
+    post:
+      tags: [Runs]
+      summary: Manually trigger a workflow once
+      description: >
+        Enqueues a single manual event for the workflow (bypassing external triggers) to produce a run.
+      operationId: manualTrigger
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualTriggerRequest'
+      responses:
+        '202':
+          description: Enqueued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualTriggerResponse'
+        '404':
+          description: Workflow not found
+
+  /runs:
+    get:
+      tags: [Runs]
+      summary: List runs (paged)
+      description: Returns recent runs, optionally filtered by workflow_id.
+      operationId: listRuns
+      parameters:
+        - in: query
+          name: workflow_id
+          schema:
+            type: string
+          description: Filter by workflow id
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Runs page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunsListResponse'
+
+  /runs/{run_id}:
+    get:
+      tags: [Runs]
+      summary: Get run details
+      description: Returns run status, step history, and outputs/errors per step.
+      operationId: getRun
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: Run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetailsResponse'
+        '404':
+          description: Not found
+
+  /runs/stream:
+    get:
+      tags: [Runs]
+      summary: Server-Sent Events stream for live run updates
+      description: >
+        Emits `text/event-stream` updates for runs of a workflow (or a specific run if provided).
+        Events include step start/finish, partial outputs (for streaming steps), errors, and completion.
+      operationId: streamRuns
+      parameters:
+        - in: query
+          name: workflow_id
+          schema:
+            type: string
+          description: Optional workflow id to subscribe to
+        - in: query
+          name: run_id
+          schema:
+            type: string
+          description: Optional specific run id
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: "event: step\ndata: {\"run_id\":\"run_123\",\"step_id\":\"slack_post\",\"status\":\"ok\"}\n\n"
+
+  /catalog:
+    get:
+      tags: [Catalog]
+      summary: Get tool catalog snapshot
+      description: Returns cached provider/action/param metadata for requested providers (or all).
+      operationId: getCatalog
+      parameters:
+        - in: query
+          name: providers
+          description: Comma-separated provider ids (e.g., composio/slack,composio/gmail)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Catalog snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogResponse'
+
+  /catalog/providers/{provider_slug}:
+    get:
+      tags: [Catalog]
+      summary: Get provider by slug
+      description: Get a specific provider by its slug identifier.
+      operationId: getProviderBySlug
+      parameters:
+        - in: path
+          name: provider_slug
+          required: true
+          schema:
+            type: string
+          description: Provider slug identifier
+        - in: query
+          name: force_refresh
+          schema:
+            type: boolean
+            default: false
+          description: Force refresh from external sources
+        - in: query
+          name: use_mcp
+          schema:
+            type: boolean
+            default: false
+          description: Explicitly use MCP fetcher
+        - in: query
+          name: use_sdk
+          schema:
+            type: boolean
+            default: false
+          description: Explicitly use SDK fetcher
+      responses:
+        '200':
+          description: Provider information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '404':
+          description: Provider not found
+
+  /catalog/tools:
+    get:
+      tags: [Catalog]
+      summary: Search tools
+      description: Search for tools across all providers or within a specific provider.
+      operationId: searchTools
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search query for tool names
+        - in: query
+          name: provider_slug
+          schema:
+            type: string
+          description: Filter by specific provider slug
+        - in: query
+          name: tool_type
+          schema:
+            type: string
+            enum: [action, trigger, both]
+          description: Filter by tool type
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Maximum number of results
+        - in: query
+          name: force_refresh
+          schema:
+            type: boolean
+            default: false
+          description: Force refresh from external sources
+      responses:
+        '200':
+          description: Tool search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolSearchResponse'
+
+  /catalog/tools/{tool_name}:
+    get:
+      tags: [Catalog]
+      summary: Get tool by name
+      description: Get a specific tool by name, optionally filtered by provider.
+      operationId: getToolByName
+      parameters:
+        - in: path
+          name: tool_name
+          required: true
+          schema:
+            type: string
+          description: Tool name (e.g., 'chat.postMessage')
+        - in: query
+          name: provider_slug
+          schema:
+            type: string
+          description: Filter by specific provider slug
+        - in: query
+          name: force_refresh
+          schema:
+            type: boolean
+            default: false
+          description: Force refresh from external sources
+      responses:
+        '200':
+          description: Tool information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolResponse'
+        '404':
+          description: Tool not found
+
+components:
+  parameters:
+    WorkflowId:
+      name: workflow_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Workflow identifier
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Run identifier
+
+  schemas:
+    # ----- Planning -----
+    PlanRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          description: Requesting user's id
+        user_request:
+          type: string
+          description: Natural language request
+        selected_apps:
+          type: array
+          items:
+            type: string
+          description: Optional explicit apps to bias planning
+    PlanResponse:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Suggestion'
+    Suggestion:
+      type: object
+      required: [suggestion_id, title, description, dsl_parametric, missing_fields, confidence, apps, source]
+      properties:
+        suggestion_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        dsl_parametric:
+          $ref: '#/components/schemas/DSLParametric'
+        missing_fields:
+          type: array
+          description: Fields the user must provide to concretize the DSL
+          items:
+            $ref: '#/components/schemas/MissingField'
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        apps:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          description: "template | generator"
+          enum: [template, generator]
+    MissingField:
+      type: object
+      required: [path, prompt]
+      properties:
+        path:
+          type: string
+          description: JSONPath-like path in the DSL to fill
+        prompt:
+          type: string
+          description: Question to ask the user
+        type_hint:
+          type: string
+          description: Optional UI hint (email, channel, enum:..., etc.)
+
+    # ----- Workflow creation -----
+    CreateWorkflowRequest:
+      type: object
+      required: [user_id, suggestion_id, filled_inputs]
+      properties:
+        user_id:
+          type: string
+        suggestion_id:
+          type: string
+        filled_inputs:
+          type: object
+          additionalProperties: true
+          description: Map of placeholders to concrete values (including connection_ids)
+    CreateWorkflowResponse:
+      type: object
+      required: [workflow_id, status, compiled, lint]
+      properties:
+        workflow_id:
+          type: string
+        status:
+          type: string
+          enum: [active, draft, paused]
+        compiled:
+          type: boolean
+        lint:
+          $ref: '#/components/schemas/LintReport'
+        workflow:
+          $ref: '#/components/schemas/WorkflowResource'
+
+    WorkflowResource:
+      type: object
+      required: [workflow_id, owner_id, status, dsl_concrete]
+      properties:
+        workflow_id:
+          type: string
+        owner_id:
+          type: string
+        status:
+          type: string
+          enum: [active, draft, paused]
+        dsl_concrete:
+          $ref: '#/components/schemas/DSLConcrete'
+        compiled_plan:
+          $ref: '#/components/schemas/CompiledPlanSummary'
+        connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectionRef'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ----- Test-build -----
+    TestBuildRequest:
+      type: object
+      properties:
+        trigger_payload:
+          type: object
+          additionalProperties: true
+          description: Synthetic or sample trigger payload
+        max_repair_attempts:
+          type: integer
+          default: 1
+          minimum: 0
+          maximum: 5
+        dry_run:
+          type: boolean
+          default: true
+          description: If true, skip destructive actions or route to sandboxes
+    TestBuildResponse:
+      type: object
+      required: [run_id, status, steps]
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, repaired_and_succeeded, failed]
+        repairs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepairRecord'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunStep'
+
+    RepairRecord:
+      type: object
+      properties:
+        attempt:
+          type: integer
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/JsonPatchOp'
+
+    JsonPatchOp:
+      type: object
+      description: Minimal RFC-6902-like patch
+      properties:
+        op:
+          type: string
+          enum: [add, remove, replace]
+        path:
+          type: string
+        value:
+          nullable: true
+
+    # ----- Activate/Pause -----
+    WorkflowStateResponse:
+      type: object
+      required: [workflow_id, status]
+      properties:
+        workflow_id:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, draft]
+
+    # ----- Manual trigger & runs -----
+    ManualTriggerRequest:
+      type: object
+      required: [trigger_payload]
+      properties:
+        trigger_payload:
+          type: object
+          additionalProperties: true
+    ManualTriggerResponse:
+      type: object
+      required: [run_id, enqueued]
+      properties:
+        run_id:
+          type: string
+        enqueued:
+          type: boolean
+
+    RunsListResponse:
+      type: object
+      required: [runs]
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunSummary'
+        next_page:
+          type: integer
+          nullable: true
+    RunSummary:
+      type: object
+      required: [run_id, workflow_id, status, started_at]
+      properties:
+        run_id:
+          type: string
+        workflow_id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    RunDetailsResponse:
+      type: object
+      required: [run_id, workflow_id, status, steps]
+      properties:
+        run_id:
+          type: string
+        workflow_id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunStep'
+        outputs:
+          type: object
+          additionalProperties: true
+          description: Optional aggregate outputs
+    RunStep:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, ok, failed, skipped]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        output:
+          type: object
+          additionalProperties: true
+          nullable: true
+        error:
+          $ref: '#/components/schemas/StepError'
+    StepError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    # ----- Catalog -----
+    CatalogResponse:
+      type: object
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Provider'
+
+    Provider:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          example: composio/slack
+        version:
+          type: string
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderAction'
+        triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderTrigger'
+        rate_limits:
+          type: object
+          additionalProperties: true
+    ProviderAction:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: chat.postMessage
+        params:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParamSpec'
+    ProviderTrigger:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: message.received
+        delivery:
+          type: array
+          items:
+            type: string
+            enum: [webhook, poll, schedule]
+        params:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParamSpec'
+    ParamSpec:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        required:
+          type: boolean
+          default: false
+        enum:
+          type: array
+          items:
+            type: string
+
+    ToolResponse:
+      type: object
+      properties:
+        tool:
+          $ref: '#/components/schemas/Tool'
+        provider:
+          $ref: '#/components/schemas/ProviderInfo'
+
+    ToolSearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query used
+        provider_filter:
+          type: string
+          description: Provider slug filter applied
+        tool_type_filter:
+          type: string
+          description: Tool type filter applied
+        total_tools:
+          type: integer
+          description: Total number of tools found
+        total_providers:
+          type: integer
+          description: Total number of providers with matching tools
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderTools'
+
+    Tool:
+      type: object
+      required: [name, display_name, tool_type, version]
+      properties:
+        name:
+          type: string
+          example: chat.postMessage
+        display_name:
+          type: string
+          example: Send Message
+        description:
+          type: string
+        tool_type:
+          type: string
+          enum: [action, trigger, both]
+        version:
+          type: string
+        parameters:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolParameter'
+
+    ToolParameter:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        required:
+          type: boolean
+          default: false
+        default:
+          type: string
+        validation:
+          type: object
+          additionalProperties: true
+
+    ProviderInfo:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+          example: slack
+        name:
+          type: string
+          example: Slack
+
+    ProviderTools:
+      type: object
+      required: [provider, tools]
+      properties:
+        provider:
+          $ref: '#/components/schemas/ProviderInfo'
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tool'
+
+    # ----- DSLs & Compile/Lint -----
+    DSLParametric:
+      type: object
+      description: "Workflow DSL with placeholders like {{boss_email}}"
+      required: [version, name, connections, trigger, actions]
+      properties:
+        version:
+          type: integer
+          enum: [1]
+        name:
+          type: string
+        connections:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ConnectionRef'
+        consent:
+          type: object
+          additionalProperties: true
+        trigger:
+          $ref: '#/components/schemas/TriggerNode'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionNode'
+        error_policy:
+          type: object
+          additionalProperties: true
+        observability:
+          type: object
+          additionalProperties: true
+    DSLConcrete:
+      allOf:
+        - $ref: '#/components/schemas/DSLParametric'
+      description: "Concrete DSL (no placeholders). Runnable as-is."
+
+    ConnectionRef:
+      type: object
+      required: [provider, connection_id]
+      properties:
+        provider:
+          type: string
+          example: composio/slack
+        connection_id:
+          type: string
+
+    TriggerNode:
+      type: object
+      required: [tool_id, name]
+      properties:
+        tool_id:
+          type: string
+          example: gmail
+        name:
+          type: string
+          example: message.received
+        delivery:
+          type: string
+          enum: [webhook, poll, schedule]
+        filter:
+          type: object
+          additionalProperties: true
+        schedule:
+          type: object
+          additionalProperties: true
+    ActionNode:
+      type: object
+      required: [tool_id, action]
+      properties:
+        id:
+          type: string
+          description: Optional unique id for referencing outputs
+        tool_id:
+          type: string
+          example: slack
+        action:
+          type: string
+          example: chat.postMessage
+        params:
+          type: object
+          additionalProperties: true
+        when:
+          type: string
+          description: Optional conditional expression
+        error_policy:
+          type: object
+          additionalProperties: true
+
+    CompiledPlanSummary:
+      type: object
+      properties:
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+                example: action|transform|choice|loop|guard
+              depends_on:
+                type: array
+                items:
+                  type: string
+
+    LintReport:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/LintFinding'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/LintFinding'
+    LintFinding:
+      type: object
+      properties:
+        code:
+          type: string
+          example: E001
+        path:
+          type: string
+          example: actions[0].params.channel
+        message:
+          type: string
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        lint:
+          $ref: '#/components/schemas/LintReport'
+        details:
+          type: object
+          additionalProperties: true

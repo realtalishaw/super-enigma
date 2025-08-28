@@ -1,0 +1,97 @@
+/* Custom styles for Weave UI */
+/* This file can be used for any custom CSS beyond TailwindCSS */
+
+/* Custom scrollbar for logs */
+.logs-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.logs-scrollbar::-webkit-scrollbar-track {
+    background: #374151;
+}
+
+.logs-scrollbar::-webkit-scrollbar-thumb {
+    background: #6B7280;
+    border-radius: 3px;
+}
+
+.logs-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #9CA3AF;
+}
+
+/* Custom focus styles */
+.focus-ring:focus {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Line clamping utilities */
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Integration card hover effects */
+.integration-card {
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.integration-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.integration-card:active {
+    transform: translateY(0);
+}
+
+/* Integration card checkbox styling */
+.integration-card input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.integration-card input[type="checkbox"]:checked {
+    background-color: #3B82F6;
+    border-color: #3B82F6;
+}
+
+/* Integration card category badge */
+.integration-card .bg-blue-100 {
+    background-color: #DBEAFE;
+    color: #1E40AF;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+}
+
+/* Category tab active state */
+.category-tab.active {
+    border-bottom-color: #3B82F6;
+    color: #2563EB;
+}
+
+.category-tab:hover:not(.active) {
+    border-bottom-color: #E5E7EB;
+    color: #374151;
+}

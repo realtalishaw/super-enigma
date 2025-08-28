@@ -1,0 +1,94 @@
+{
+  "workflow_id": "simple_email_workflow",
+  "version": "1.0.0",
+  "user_id": null,
+  "nodes": [
+    {
+      "id": "t1",
+      "type": "trigger",
+      "data": {
+        "kind": "event_based",
+        "tool": "salesforce",
+        "slug": "new_lead",
+        "connection_id": "salesforce_conn",
+        "configuration": {
+          "object_type": "Lead"
+        }
+      },
+      "label": "Trigger: salesforce",
+      "icon": null,
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "a1",
+      "type": "action",
+      "data": {
+        "tool": "sendgrid",
+        "action": "send_email",
+        "connection_id": "sendgrid_conn",
+        "input_template": {
+          "required": {
+            "to": "$.email",
+            "subject": "Welcome $.first_name + ' ' + $.last_name!",
+            "body": "Hi $.first_name + ' ' + $.last_name, thanks for your interest!"
+          },
+          "optional": {
+            "from": "noreply@company.com"
+          }
+        },
+        "output_vars": {
+          "result": "$.result",
+          "status": "$.status"
+        },
+        "retry": {
+          "max_attempts": 3,
+          "backoff_multiplier": 2.0,
+          "initial_delay_ms": 1000
+        },
+        "timeout_ms": 30000,
+        "rate_limit": {
+          "requests_per_minute": 60
+        }
+      },
+      "label": "Action: send_email",
+      "icon": null,
+      "position": {
+        "x": 200,
+        "y": 100
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_t1_a1",
+      "source": "t1",
+      "target": "a1",
+      "when": "success",
+      "condition": null,
+      "label": ""
+    }
+  ],
+  "globals": {
+    "retry": {
+      "max_attempts": 3,
+      "backoff_multiplier": 2.0,
+      "initial_delay_ms": 1000
+    },
+    "timeout_ms": 30000,
+    "rate_limit": {
+      "requests_per_minute": 60
+    },
+    "max_parallelism": 10
+  },
+  "ui": {
+    "layout": "dagre",
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

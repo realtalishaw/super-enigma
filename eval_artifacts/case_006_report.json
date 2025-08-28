@@ -1,0 +1,20 @@
+{
+  "success": false,
+  "latency_ms": 28254,
+  "schema_valid": false,
+  "catalog_compliant": false,
+  "lint_errors": 0,
+  "lint_warnings": 0,
+  "confidence": 0.0,
+  "raw_response_preview": "```json\n{\n  \"name\": \"Stripe Charge to Slack\",\n  \"description\": \"Send Slack message when Stripe charge succeeds over $100\",\n  \"triggers\": [\n    {\n      \"id\": \"stripe_charge_trigger\",\n      \"type\": \"stripe_STRIPE_CHECKOUT_SESSION_COMPLETED_TR\u2026",
+  "input": {
+    "workflow_type": "template",
+    "complexity": "simple",
+    "selected_apps": [
+      "stripe",
+      "slack"
+    ],
+    "prompt_summary": "When a Stripe charge succeeds over $100, send a Slack message to #sales with the customer and amount."
+  },
+  "error_message": "Failed to parse Claude response: Generated DSL does not match expected structure"
+}

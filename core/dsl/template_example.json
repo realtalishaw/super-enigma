@@ -1,0 +1,49 @@
+{
+  "schema_type": "template",
+  "workflow": {
+    "name": "title of the workflow",
+    "description": "description of how the workflow works in natural language",
+    "triggers": [
+      {
+        "id": "user-defined identifier",
+        "type": "event_based or schedule_based",
+        "toolkit_slug": "the integration being used",
+        "composio_trigger_slug": "the action being taken",
+        "requires_auth": true
+      }
+    ],
+    "actions": [
+      {
+        "id": "user-defined identifier",
+        "toolkit_slug": "the integration being used",
+        "action_name": "the slug of the action being taken",
+        "required_inputs": [
+          {
+            "name": "channel",
+            "source": "{{ inputs.channel_id }}",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "text",
+            "source": "New email from {{ trigger.sender }}: {{ trigger.subject }}",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "depends_on": ["gmail_trigger"],
+        "requires_auth": true
+      }
+    ]
+  },
+
+  "missing_information": [
+    {
+      "field": "the input required from the composio catalog",
+      "prompt": "the description of the required input",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "confidence": 85
+}

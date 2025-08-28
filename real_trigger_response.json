@@ -1,0 +1,344 @@
+{
+  "id": "ti_Fv1JU5SdRZGt",
+  "uuid": "784aeba5-a7ef-4b8a-a99c-9ac63a501ff5",
+  "user_id": "misstalishawhite@gmail.com",
+  "toolkit_slug": "gmail",
+  "trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+  "metadata": {
+    "id": "ti_Fv1JU5SdRZGt",
+    "uuid": "784aeba5-a7ef-4b8a-a99c-9ac63a501ff5",
+    "toolkit_slug": "gmail",
+    "trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+    "trigger_data": "",
+    "trigger_config": {
+      "query": "",
+      "userId": "me",
+      "interval": 1,
+      "labelIds": "INBOX"
+    },
+    "connected_account": {
+      "id": "ca_koPgNvjGz4fq",
+      "uuid": "474e6c33-9c59-4ada-8b35-b4e19c66bdac",
+      "auth_config_id": "ac_DqWacToN2Ei3",
+      "auth_config_uuid": "7ed081ab-493f-4375-9ec1-5bb63dbcb55c",
+      "user_id": "misstalishawhite@gmail.com",
+      "status": "ACTIVE"
+    }
+  },
+  "payload": {
+    "attachment_list": [],
+    "id": "198ed39643ef2faa",
+    "label_ids": [
+      "UNREAD",
+      "CATEGORY_PERSONAL",
+      "INBOX"
+    ],
+    "message_id": "198ed39643ef2faa",
+    "message_text": "please be my lucky number\r\n\n<div dir=\"ltr\">please be my lucky number</div>\r\n",
+    "message_timestamp": "2025-08-27T20:30:06Z",
+    "payload": {
+      "body": {
+        "size": 0
+      },
+      "filename": "",
+      "headers": [
+        {
+          "name": "Delivered-To",
+          "value": "misstalishawhite@gmail.com"
+        },
+        {
+          "name": "Received",
+          "value": "by 2002:a05:7010:3e11:b0:485:3852:3f06 with SMTP id w17csp442636mdp;        Wed, 27 Aug 2025 13:30:18 -0700 (PDT)"
+        },
+        {
+          "name": "X-Received",
+          "value": "by 2002:a17:902:f70c:b0:246:a165:87c7 with SMTP id d9443c01a7336-246a1658a38mr202496005ad.42.1756326618459;        Wed, 27 Aug 2025 13:30:18 -0700 (PDT)"
+        },
+        {
+          "name": "ARC-Seal",
+          "value": "i=1; a=rsa-sha256; t=1756326618; cv=none;        d=google.com; s=arc-20240605;        b=SBjOMg022dYgCCtdnVHuAyjJgc/gcjU/zxYyV/3L32mD6PNs4hUlVdR80noDO25C9r         VvxJPbFYFi9FpTKXmixWDH1St7dbeb3oJVMawiYBnIK88cv8IncnQZSL9MPbOxFRLSRK         kOFAVkJX2pcsnNpQeThA68bPAASHDtXHL/gJ8UsMqI3IVI5ap1hYhDc80Veth6tRVCAO         4Wm9932J58YtRiNGRLypPaFhAZ9O5q8gGNbFvXtK6BwCQTDUqRfPINeZk7HNC6GMRyNm         Ok7SWojKIGNN/xbOVFGTyWwnXwiYrnNstQ5FQ8xeFSeJ0KT+vO3htRThDCFhW9JU7LhN         8u+w=="
+        },
+        {
+          "name": "ARC-Message-Signature",
+          "value": "i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;        h=to:subject:message-id:date:from:mime-version:dkim-signature;        bh=TO7EArdSvJxm/W03gnIeqMo69xfaH+TxR73eGc0idjo=;        fh=xJ9BOE70sQ/Hw5R02zUfTfgRoGPabqYJa+56A8ptV6I=;        b=S5l7CHSM5/u82gQu3gfkst80uTXtw0YK/E9lVmtj9u2VVJvZPAhFz2ico7elTrcnDw         cEdzBSl+toaC5DAp3kBcdHPbrRK3WYEUbWVEDFET4D/39wB6hmnjObtz22UJo/VCFWGh         IeFTjt/Yo6TGazHtE/fPJTcSnKZVtT2wOgrGivQL95K5DmWkBPuMFlymGsPJ6KW0r8A9         K/nVUT8jTtDRAgiCpw58es0EcK12XYJXxwdzwcfy6XrwfYb0QGBCLLhz+3CDRhTYWegP         dGr00n0582XZqhOMxZXSaAWfGBJIrSiWxv/WQYsuvuIg8CcmOv6GrASWo9TOmB4zoxpm         cIeg==;        dara=google.com"
+        },
+        {
+          "name": "ARC-Authentication-Results",
+          "value": "i=1; mx.google.com;       dkim=pass header.i=@alcemi-dev.20230601.gappssmtp.com header.s=20230601 header.b=XqZ9ntiN;       spf=pass (google.com: domain of talisha@alcemi.dev designates 209.85.220.41 as permitted sender) smtp.mailfrom=talisha@alcemi.dev;       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=alcemi.dev;       dara=pass header.i=@gmail.com"
+        },
+        {
+          "name": "Return-Path",
+          "value": "<talisha@alcemi.dev>"
+        },
+        {
+          "name": "Received",
+          "value": "from mail-sor-f41.google.com (mail-sor-f41.google.com. [209.85.220.41])        by mx.google.com with SMTPS id d9443c01a7336-2466879321bsor77492665ad.1.2025.08.27.13.30.18        for <misstalishawhite@gmail.com>        (Google Transport Security);        Wed, 27 Aug 2025 13:30:18 -0700 (PDT)"
+        },
+        {
+          "name": "Received-SPF",
+          "value": "pass (google.com: domain of talisha@alcemi.dev designates 209.85.220.41 as permitted sender) client-ip=209.85.220.41;"
+        },
+        {
+          "name": "Authentication-Results",
+          "value": "mx.google.com;       dkim=pass header.i=@alcemi-dev.20230601.gappssmtp.com header.s=20230601 header.b=XqZ9ntiN;       spf=pass (google.com: domain of talisha@alcemi.dev designates 209.85.220.41 as permitted sender) smtp.mailfrom=talisha@alcemi.dev;       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=alcemi.dev;       dara=pass header.i=@gmail.com"
+        },
+        {
+          "name": "DKIM-Signature",
+          "value": "v=1; a=rsa-sha256; c=relaxed/relaxed;        d=alcemi-dev.20230601.gappssmtp.com; s=20230601; t=1756326618; x=1756931418; dara=google.com;        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject         :date:message-id:reply-to;        bh=TO7EArdSvJxm/W03gnIeqMo69xfaH+TxR73eGc0idjo=;        b=XqZ9ntiNAX36FL4fElsv0wuiL6DBVuWtauSypQc2BJ+lcKmbls5K3VOANAzUO/rXpv         f4BQXYexqoYpjIM3wBbtML1yWorYyinAPHGZbFg00Vu7wz3DlXVhGycp//T35fl8afYB         BcTsP4bVAc92rJbdBeDKh983iSvO0pkAwtUGZ2yMaZZ2srZpaORjSYUsfTNbRdCH4ovg         hV109p2jt176DmOuG22VmLEVTOjTFstUL1KRKNotrN/9tK7BV47fYW4SDkzDAr15ywj5         mfwCoO60MGmfZGzH+v+81pOV6SXA8omYkI//5QMvokkK6hzY4CNyvOfGqmF4fD+JP2mH         QY2A=="
+        },
+        {
+          "name": "X-Google-DKIM-Signature",
+          "value": "v=1; a=rsa-sha256; c=relaxed/relaxed;        d=1e100.net; s=20230601; t=1756326618; x=1756931418;        h=to:subject:message-id:date:from:mime-version:x-gm-message-state         :from:to:cc:subject:date:message-id:reply-to;        bh=TO7EArdSvJxm/W03gnIeqMo69xfaH+TxR73eGc0idjo=;        b=mXyC49q0F2mL1QRD7otuSsWo4O8sO+w8fIyX+LjcS1zJLFxAuwjuwqxHmT5taMqubW         GphvYEh0GXTXOCKAM+X968ibw2HxA8aH5lnTdaze5s1z0zz/b26eYc5QgRc5qu5Y/o/q         ysz2iL2u2X4G50nsm3Oy4M541770j0EUwdljMLZP8MLYgrWBCjW+mhYOXO+Pc+jFg16B         wc1ATmKDENVt06IRbShYzs8stLLdEuNO8IUyf02pvastgXSFQX9uRijdznp4sPRPVSmh         StGslgjcU1hUSjYVuy3z6+5cK9ItVtJHRpAFG0r9Fza2GaQvC9QyFgEWAFn9M1haTJ4r         TBLw=="
+        },
+        {
+          "name": "X-Gm-Message-State",
+          "value": "AOJu0Yym8LB0cwy+tkUDIa8DUBnqojv72aUbNqZpWHTpKZ4WejFOukWd 5PWuBZ7w7tklpQw3bb/2ZcXQQFcj6JahQBNDm41/ru59ozTcIX37zuFenOFrv/t45F1sKiHRRRU KnQXJ2HgRoBKCT2zCtgq9KgmFOl+xRRlb+LrA4z+gOjsFhMeAnfrtKw=="
+        },
+        {
+          "name": "X-Gm-Gg",
+          "value": "ASbGnctE3DH/y+CanQrV81V01uPllpZwMdz6FvC42enpf7F8DBoeiNSYL7zaA+weY0C QvM7Knwf5CmkvskvShEj/Pv6sY5UB9E9hJlZFkvXbg0aaM96pNJX1M6v66WuTosN23vjI4doXGg Gkol9rvd4t7d+dss0E05vNp9eaKkadqzocaQc4hQp4d3WKosD4qzaa692VGpPpL6cS2hUy0pOzH 9xI2Mxqmzc2QxIQCLIlVF8yBzZQOlwMOEnul0iwcGBMnNU="
+        },
+        {
+          "name": "X-Google-Smtp-Source",
+          "value": "AGHT+IHj21j2AHA0sZlVdOOOackrEBf4Ie3KZChIB5ydB0pmGzpKpc1sDeYGwy/+b0VluS/PzhzvFdI7QS2CijfUnLA="
+        },
+        {
+          "name": "X-Received",
+          "value": "by 2002:a17:903:24d:b0:242:3105:1788 with SMTP id d9443c01a7336-2462ef8ef7fmr282302025ad.45.1756326617716; Wed, 27 Aug 2025 13:30:17 -0700 (PDT)"
+        },
+        {
+          "name": "MIME-Version",
+          "value": "1.0"
+        },
+        {
+          "name": "From",
+          "value": "Talisha White <talisha@alcemi.dev>"
+        },
+        {
+          "name": "Date",
+          "value": "Wed, 27 Aug 2025 16:30:06 -0400"
+        },
+        {
+          "name": "X-Gm-Features",
+          "value": "Ac12FXyAorcF0cQFevoCh70CVZpcS0K4QYmklqUkcxPduzR1qE0I5WkPYPtCz_k"
+        },
+        {
+          "name": "Message-ID",
+          "value": "<CALSObw-jTcP7rdfcjw71f0JZOKgfjqxQuxZjsHDX2FOw4HhEoQ@mail.gmail.com>"
+        },
+        {
+          "name": "Subject",
+          "value": "triggered 13"
+        },
+        {
+          "name": "To",
+          "value": "misstalishawhite@gmail.com"
+        },
+        {
+          "name": "Content-Type",
+          "value": "multipart/alternative; boundary=\"00000000000028bc14063d5ea8bf\""
+        }
+      ],
+      "mimeType": "multipart/alternative",
+      "partId": "",
+      "parts": [
+        {
+          "body": {
+            "data": "cGxlYXNlIGJlIG15IGx1Y2t5IG51bWJlcg0K",
+            "size": 27
+          },
+          "filename": "",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "text/plain; charset=\"UTF-8\""
+            }
+          ],
+          "mimeType": "text/plain",
+          "partId": "0"
+        },
+        {
+          "body": {
+            "data": "PGRpdiBkaXI9Imx0ciI-cGxlYXNlIGJlIG15IGx1Y2t5IG51bWJlcjwvZGl2Pg0K",
+            "size": 48
+          },
+          "filename": "",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "text/html; charset=\"UTF-8\""
+            }
+          ],
+          "mimeType": "text/html",
+          "partId": "1"
+        }
+      ]
+    },
+    "preview": {
+      "body": "please be my lucky number",
+      "subject": "triggered 13"
+    },
+    "sender": "Talisha White <talisha@alcemi.dev>",
+    "subject": "triggered 13",
+    "thread_id": "198ed39643ef2faa",
+    "to": "misstalishawhite@gmail.com"
+  },
+  "original_payload": {
+    "attachment_list": [],
+    "id": "198ed39643ef2faa",
+    "label_ids": [
+      "UNREAD",
+      "CATEGORY_PERSONAL",
+      "INBOX"
+    ],
+    "message_id": "198ed39643ef2faa",
+    "message_text": "please be my lucky number\r\n\n<div dir=\"ltr\">please be my lucky number</div>\r\n",
+    "message_timestamp": "2025-08-27T20:30:06Z",
+    "payload": {
+      "body": {
+        "size": 0
+      },
+      "filename": "",
+      "headers": [
+        {
+          "name": "Delivered-To",
+          "value": "misstalishawhite@gmail.com"
+        },
+        {
+          "name": "Received",
+          "value": "by 2002:a05:7010:3e11:b0:485:3852:3f06 with SMTP id w17csp442636mdp;        Wed, 27 Aug 2025 13:30:18 -0700 (PDT)"
+        },
+        {
+          "name": "X-Received",
+          "value": "by 2002:a17:902:f70c:b0:246:a165:87c7 with SMTP id d9443c01a7336-246a1658a38mr202496005ad.42.1756326618459;        Wed, 27 Aug 2025 13:30:18 -0700 (PDT)"
+        },
+        {
+          "name": "ARC-Seal",
+          "value": "i=1; a=rsa-sha256; t=1756326618; cv=none;        d=google.com; s=arc-20240605;        b=SBjOMg022dYgCCtdnVHuAyjJgc/gcjU/zxYyV/3L32mD6PNs4hUlVdR80noDO25C9r         VvxJPbFYFi9FpTKXmixWDH1St7dbeb3oJVMawiYBnIK88cv8IncnQZSL9MPbOxFRLSRK         kOFAVkJX2pcsnNpQeThA68bPAASHDtXHL/gJ8UsMqI3IVI5ap1hYhDc80Veth6tRVCAO         4Wm9932J58YtRiNGRLypPaFhAZ9O5q8gGNbFvXtK6BwCQTDUqRfPINeZk7HNC6GMRyNm         Ok7SWojKIGNN/xbOVFGTyWwnXwiYrnNstQ5FQ8xeFSeJ0KT+vO3htRThDCFhW9JU7LhN         8u+w=="
+        },
+        {
+          "name": "ARC-Message-Signature",
+          "value": "i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;        h=to:subject:message-id:date:from:mime-version:dkim-signature;        bh=TO7EArdSvJxm/W03gnIeqMo69xfaH+TxR73eGc0idjo=;        fh=xJ9BOE70sQ/Hw5R02zUfTfgRoGPabqYJa+56A8ptV6I=;        b=S5l7CHSM5/u82gQu3gfkst80uTXtw0YK/E9lVmtj9u2VVJvZPAhFz2ico7elTrcnDw         cEdzBSl+toaC5DAp3kBcdHPbrRK3WYEUbWVEDFET4D/39wB6hmnjObtz22UJo/VCFWGh         IeFTjt/Yo6TGazHtE/fPJTcSnKZVtT2wOgrGivQL95K5DmWkBPuMFlymGsPJ6KW0r8A9         K/nVUT8jTtDRAgiCpw58es0EcK12XYJXxwdzwcfy6XrwfYb0QGBCLLhz+3CDRhTYWegP         dGr00n0582XZqhOMxZXSaAWfGBJIrSiWxv/WQYsuvuIg8CcmOv6GrASWo9TOmB4zoxpm         cIeg==;        dara=google.com"
+        },
+        {
+          "name": "ARC-Authentication-Results",
+          "value": "i=1; mx.google.com;       dkim=pass header.i=@alcemi-dev.20230601.gappssmtp.com header.s=20230601 header.b=XqZ9ntiN;       spf=pass (google.com: domain of talisha@alcemi.dev designates 209.85.220.41 as permitted sender) smtp.mailfrom=talisha@alcemi.dev;       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=alcemi.dev;       dara=pass header.i=@gmail.com"
+        },
+        {
+          "name": "Return-Path",
+          "value": "<talisha@alcemi.dev>"
+        },
+        {
+          "name": "Received",
+          "value": "from mail-sor-f41.google.com (mail-sor-f41.google.com. [209.85.220.41])        by mx.google.com with SMTPS id d9443c01a7336-2466879321bsor77492665ad.1.2025.08.27.13.30.18        for <misstalishawhite@gmail.com>        (Google Transport Security);        Wed, 27 Aug 2025 13:30:18 -0700 (PDT)"
+        },
+        {
+          "name": "Received-SPF",
+          "value": "pass (google.com: domain of talisha@alcemi.dev designates 209.85.220.41 as permitted sender) client-ip=209.85.220.41;"
+        },
+        {
+          "name": "Authentication-Results",
+          "value": "mx.google.com;       dkim=pass header.i=@alcemi-dev.20230601.gappssmtp.com header.s=20230601 header.b=XqZ9ntiN;       spf=pass (google.com: domain of talisha@alcemi.dev designates 209.85.220.41 as permitted sender) smtp.mailfrom=talisha@alcemi.dev;       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=alcemi.dev;       dara=pass header.i=@gmail.com"
+        },
+        {
+          "name": "DKIM-Signature",
+          "value": "v=1; a=rsa-sha256; c=relaxed/relaxed;        d=alcemi-dev.20230601.gappssmtp.com; s=20230601; t=1756326618; x=1756931418; dara=google.com;        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject         :date:message-id:reply-to;        bh=TO7EArdSvJxm/W03gnIeqMo69xfaH+TxR73eGc0idjo=;        b=XqZ9ntiNAX36FL4fElsv0wuiL6DBVuWtauSypQc2BJ+lcKmbls5K3VOANAzUO/rXpv         f4BQXYexqoYpjIM3wBbtML1yWorYyinAPHGZbFg00Vu7wz3DlXVhGycp//T35fl8afYB         BcTsP4bVAc92rJbdBeDKh983iSvO0pkAwtUGZ2yMaZZ2srZpaORjSYUsfTNbRdCH4ovg         hV109p2jt176DmOuG22VmLEVTOjTFstUL1KRKNotrN/9tK7BV47fYW4SDkzDAr15ywj5         mfwCoO60MGmfZGzH+v+81pOV6SXA8omYkI//5QMvokkK6hzY4CNyvOfGqmF4fD+JP2mH         QY2A=="
+        },
+        {
+          "name": "X-Google-DKIM-Signature",
+          "value": "v=1; a=rsa-sha256; c=relaxed/relaxed;        d=1e100.net; s=20230601; t=1756326618; x=1756931418;        h=to:subject:message-id:date:from:mime-version:x-gm-message-state         :from:to:cc:subject:date:message-id:reply-to;        bh=TO7EArdSvJxm/W03gnIeqMo69xfaH+TxR73eGc0idjo=;        b=mXyC49q0F2mL1QRD7otuSsWo4O8sO+w8fIyX+LjcS1zJLFxAuwjuwqxHmT5taMqubW         GphvYEh0GXTXOCKAM+X968ibw2HxA8aH5lnTdaze5s1z0zz/b26eYc5QgRc5qu5Y/o/q         ysz2iL2u2X4G50nsm3Oy4M541770j0EUwdljMLZP8MLYgrWBCjW+mhYOXO+Pc+jFg16B         wc1ATmKDENVt06IRbShYzs8stLLdEuNO8IUyf02pvastgXSFQX9uRijdznp4sPRPVSmh         StGslgjcU1hUSjYVuy3z6+5cK9ItVtJHRpAFG0r9Fza2GaQvC9QyFgEWAFn9M1haTJ4r         TBLw=="
+        },
+        {
+          "name": "X-Gm-Message-State",
+          "value": "AOJu0Yym8LB0cwy+tkUDIa8DUBnqojv72aUbNqZpWHTpKZ4WejFOukWd 5PWuBZ7w7tklpQw3bb/2ZcXQQFcj6JahQBNDm41/ru59ozTcIX37zuFenOFrv/t45F1sKiHRRRU KnQXJ2HgRoBKCT2zCtgq9KgmFOl+xRRlb+LrA4z+gOjsFhMeAnfrtKw=="
+        },
+        {
+          "name": "X-Gm-Gg",
+          "value": "ASbGnctE3DH/y+CanQrV81V01uPllpZwMdz6FvC42enpf7F8DBoeiNSYL7zaA+weY0C QvM7Knwf5CmkvskvShEj/Pv6sY5UB9E9hJlZFkvXbg0aaM96pNJX1M6v66WuTosN23vjI4doXGg Gkol9rvd4t7d+dss0E05vNp9eaKkadqzocaQc4hQp4d3WKosD4qzaa692VGpPpL6cS2hUy0pOzH 9xI2Mxqmzc2QxIQCLIlVF8yBzZQOlwMOEnul0iwcGBMnNU="
+        },
+        {
+          "name": "X-Google-Smtp-Source",
+          "value": "AGHT+IHj21j2AHA0sZlVdOOOackrEBf4Ie3KZChIB5ydB0pmGzpKpc1sDeYGwy/+b0VluS/PzhzvFdI7QS2CijfUnLA="
+        },
+        {
+          "name": "X-Received",
+          "value": "by 2002:a17:903:24d:b0:242:3105:1788 with SMTP id d9443c01a7336-2462ef8ef7fmr282302025ad.45.1756326617716; Wed, 27 Aug 2025 13:30:17 -0700 (PDT)"
+        },
+        {
+          "name": "MIME-Version",
+          "value": "1.0"
+        },
+        {
+          "name": "From",
+          "value": "Talisha White <talisha@alcemi.dev>"
+        },
+        {
+          "name": "Date",
+          "value": "Wed, 27 Aug 2025 16:30:06 -0400"
+        },
+        {
+          "name": "X-Gm-Features",
+          "value": "Ac12FXyAorcF0cQFevoCh70CVZpcS0K4QYmklqUkcxPduzR1qE0I5WkPYPtCz_k"
+        },
+        {
+          "name": "Message-ID",
+          "value": "<CALSObw-jTcP7rdfcjw71f0JZOKgfjqxQuxZjsHDX2FOw4HhEoQ@mail.gmail.com>"
+        },
+        {
+          "name": "Subject",
+          "value": "triggered 13"
+        },
+        {
+          "name": "To",
+          "value": "misstalishawhite@gmail.com"
+        },
+        {
+          "name": "Content-Type",
+          "value": "multipart/alternative; boundary=\"00000000000028bc14063d5ea8bf\""
+        }
+      ],
+      "mimeType": "multipart/alternative",
+      "partId": "",
+      "parts": [
+        {
+          "body": {
+            "data": "cGxlYXNlIGJlIG15IGx1Y2t5IG51bWJlcg0K",
+            "size": 27
+          },
+          "filename": "",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "text/plain; charset=\"UTF-8\""
+            }
+          ],
+          "mimeType": "text/plain",
+          "partId": "0"
+        },
+        {
+          "body": {
+            "data": "PGRpdiBkaXI9Imx0ciI-cGxlYXNlIGJlIG15IGx1Y2t5IG51bWJlcjwvZGl2Pg0K",
+            "size": 48
+          },
+          "filename": "",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "text/html; charset=\"UTF-8\""
+            }
+          ],
+          "mimeType": "text/html",
+          "partId": "1"
+        }
+      ]
+    },
+    "preview": {
+      "body": "please be my lucky number",
+      "subject": "triggered 13"
+    },
+    "sender": "Talisha White <talisha@alcemi.dev>",
+    "subject": "triggered 13",
+    "thread_id": "198ed39643ef2faa",
+    "to": "misstalishawhite@gmail.com"
+  }
+}

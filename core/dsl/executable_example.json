@@ -1,0 +1,53 @@
+{
+  "schema_type": "executable",
+  "workflow": {
+    "name": "Gmail to Slack Notification",
+    "description": "Automatically send Slack notifications when new Gmail messages arrive",
+    "triggers": [
+      {
+        "id": "gmail_trigger",
+        "type": "event_based",
+        "toolkit_slug": "gmail",
+        "composio_trigger_slug": "GMAIL_MESSAGE_RECEIVED",
+        "configuration": {
+          "label_ids": ["INBOX"],
+          "max_results": 10
+        },
+        "requires_auth": true
+      }
+    ],
+    "actions": [
+      {
+        "id": "slack_notify",
+        "toolkit_slug": "slack",
+        "action_name": "SLACK_SEND_MESSAGE",
+        "required_inputs": [
+          {
+            "name": "channel",
+            "source": "{{ inputs.channel_id }}",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "text",
+            "source": "New email from {{ trigger.sender }}: {{ trigger.subject }}",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "depends_on": ["gmail_trigger"],
+        "requires_auth": true
+      }
+    ]
+  },
+  "connections": [
+    {
+      "toolkit_slug": "gmail",
+      "connection_id": "ca_gmail_12345"
+    },
+    {
+      "toolkit_slug": "slack",
+      "connection_id": "ca_slack_67890"
+    }
+  ]
+}
