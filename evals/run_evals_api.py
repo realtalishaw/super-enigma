@@ -41,6 +41,48 @@ class MockConnections(Connections):
     async def get_connection(self, connection_id: str):
         return None
 
+def extract_llm_interaction_data(api_response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract LLM interaction data from the API response.
+    This looks for any logging or debug information that might be included.
+    """
+    llm_data = {
+        "llm_inputs": None,
+        "llm_outputs": None,
+        "groq_api_calls": None,
+        "claude_api_calls": None
+    }
+    
+    try:
+        # Look for any debug or logging information in the response
+        if "debug" in api_response:
+            debug_info = api_response["debug"]
+            if "llm_prompt" in debug_info:
+                llm_data["llm_inputs"] = debug_info["llm_prompt"]
+            if "llm_response" in debug_info:
+                llm_data["llm_outputs"] = debug_info["llm_response"]
+        
+        # Look for generation metadata
+        if "generation_metadata" in api_response:
+            metadata = api_response["generation_metadata"]
+            if "raw_response" in metadata:
+                llm_data["llm_outputs"] = metadata["raw_response"]
+        
+        # Look for any error details that might contain LLM info
+        if "error_details" in api_response:
+            error_details = api_response["error_details"]
+            if "llm_interaction" in error_details:
+                llm_data.update(error_details["llm_interaction"])
+        
+        # Check if the response itself contains LLM data
+        if "llm_debug" in api_response:
+            llm_data.update(api_response["llm_debug"])
+            
+    except Exception as e:
+        print(f"Warning: Could not extract LLM interaction data: {e}")
+    
+    return llm_data
+
 # --- API Configuration ---
 
 API_BASE_URL = "http://localhost:8001"  # Default from your .env
@@ -126,9 +168,20 @@ async def run_evaluation():
             "steps_generated": 0,
             "error_message": None,
             "generated_dsl": None,
-            "api_response": api_response
+            "api_response": api_response,
+            "llm_inputs": None,  # Will be populated from logs
+            "llm_outputs": None,  # Will be populated from logs
+            "groq_api_calls": None,  # Will be populated from logs
+            "claude_api_calls": None  # Will be populated from logs
         }
 
+        # Extract LLM interaction data from the API response
+        llm_data = extract_llm_interaction_data(api_response)
+        score["llm_inputs"] = llm_data["llm_inputs"]
+        score["llm_outputs"] = llm_data["llm_outputs"]
+        score["groq_api_calls"] = llm_data["groq_api_calls"]
+        score["claude_api_calls"] = llm_data["claude_api_calls"]
+        
         # Check if API call was successful
         if "error" in api_response:
             score["error_message"] = api_response["error"]
@@ -243,6 +296,10 @@ async def run_evaluation():
     pass_rate = (len(successful_runs) / total_cases) * 100 if total_cases > 0 else 0
     avg_latency = sum(r["latency_ms"] for r in results) / total_cases if total_cases > 0 else 0
     avg_accuracy = sum(r["accuracy_score"] for r in successful_runs) / len(successful_runs) if successful_runs else 0
+    
+    # Calculate LLM interaction stats
+    cases_with_llm_data = [r for r in results if r["llm_inputs"] or r["llm_outputs"]]
+    llm_data_coverage = (len(cases_with_llm_data) / total_cases) * 100 if total_cases > 0 else 0
 
     # 7. Print and Save the final report
     report = {
@@ -253,12 +310,23 @@ async def run_evaluation():
             "pass_rate_percent": round(pass_rate, 2),
             "average_latency_ms": round(avg_latency),
             "average_accuracy_on_pass": round(avg_accuracy, 2),
+            "llm_data_coverage_percent": round(llm_data_coverage, 2),
         },
         "results": results
     }
 
     print("\n--- ✅ API-BASED EVALUATION COMPLETE ---")
     print(json.dumps(report["summary"], indent=2))
+    
+    # Show LLM data coverage
+    if llm_data_coverage > 0:
+        print(f"\n📊 LLM Interaction Data Coverage: {llm_data_coverage:.1f}%")
+        print(f"   - Cases with LLM data: {len(cases_with_llm_data)}/{total_cases}")
+        print(f"   - This data will be available in the detailed results for debugging")
+    else:
+        print(f"\n⚠️  No LLM interaction data captured in API responses")
+        print(f"   - The detailed logs are only available server-side")
+        print(f"   - Consider adding debug mode to API responses if needed")
     
     report_filename = f"api_eval_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_filename, "w") as f:
@@ -273,5 +341,11 @@ if __name__ == "__main__":
     
     print(f"🚀 Starting API-based evaluation...")
     print(f"📡 API Endpoint: {SUGGESTIONS_ENDPOINT}")
+    print("\n📝 Note: This evaluation will attempt to capture LLM interaction data from API responses.")
+    print("   - LLM inputs (prompts sent to Claude)")
+    print("   - LLM outputs (raw responses from Claude)")
+    print("   - Groq API calls (tool selection)")
+    print("   - Claude API calls (workflow generation)")
+    print("   - If no data is found, check server logs for detailed information.")
     
     asyncio.run(run_evaluation())

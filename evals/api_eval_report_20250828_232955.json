@@ -1,0 +1,2574 @@
+{
+  "run_timestamp": "2025-08-28T23:29:55.601032",
+  "api_endpoint": "http://localhost:8001/api/suggestions:generate",
+  "summary": {
+    "total_cases": 15,
+    "pass_rate_percent": 20.0,
+    "average_latency_ms": 8582,
+    "average_accuracy_on_pass": 0.22
+  },
+  "results": [
+    {
+      "case_id": "CASE_001_GMAIL_TO_SLACK_SIMPLE",
+      "prompt": "When a new email arrives in my Gmail inbox, post the subject to the #general channel in Slack.",
+      "latency_ms": 8272,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'POST_MESSAGE' in toolkit 'slack'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Gmail to Slack Notification",
+          "triggers": [
+            {
+              "id": "gmail_trigger",
+              "type": "event_based",
+              "toolkit_slug": "gmail",
+              "composio_trigger_slug": "NEW_EMAIL"
+            }
+          ],
+          "actions": [
+            {
+              "id": "slack_post",
+              "toolkit_slug": "slack",
+              "action_name": "POST_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "channel",
+                  "source": "{{inputs.slack_channel}}",
+                  "type": "string"
+                },
+                {
+                  "name": "message",
+                  "source": "{{trigger.subject}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "gmail_trigger"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "8a86baec-6dd6-4727-bbab-6dc5995a0b8b",
+            "title": "Gmail to Slack Notification",
+            "description": "Posts Gmail subject lines to Slack when new emails arrive",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Gmail to Slack Notification",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "gmail_trigger",
+                "type": "event_based",
+                "toolkit_slug": "gmail",
+                "composio_trigger_slug": "NEW_EMAIL"
+              },
+              "actions": [
+                {
+                  "id": "slack_post",
+                  "toolkit_slug": "slack",
+                  "action_name": "POST_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "channel",
+                      "source": "{{inputs.slack_channel}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "message",
+                      "source": "{{trigger.subject}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "gmail_trigger"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.slack_channel",
+                "prompt": "Which Slack channel should the messages be posted to? (include the # symbol)",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "gmail",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Gmail to Slack Notification",
+                "description": "Posts Gmail subject lines to Slack when new emails arrive",
+                "triggers": [
+                  {
+                    "id": "gmail_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "gmail",
+                    "composio_trigger_slug": "NEW_EMAIL"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "slack_post",
+                    "toolkit_slug": "slack",
+                    "action_name": "POST_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "channel",
+                        "source": "{{inputs.slack_channel}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "message",
+                        "source": "{{trigger.subject}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "gmail_trigger"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.slack_channel",
+                  "prompt": "Which Slack channel should the messages be posted to? (include the # symbol)",
+                  "type": "string",
+                  "required": true,
+                  "default": "#general"
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_002_STRIPE_MULTI_STEP",
+      "prompt": "When a new customer pays via Stripe, add their name and email to a 'New Customers' Google Sheet, and then post a celebration message in the #sales channel on Slack.",
+      "latency_ms": 8557,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'APPEND_ROW' in toolkit 'google_sheets'\", \"Unknown action 'POST_MESSAGE' in toolkit 'slack'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "New Customer Celebration",
+          "triggers": [
+            {
+              "id": "stripe_payment",
+              "type": "event_based",
+              "toolkit_slug": "stripe",
+              "composio_trigger_slug": "PAYMENT_SUCCEEDED"
+            }
+          ],
+          "actions": [
+            {
+              "id": "add_to_sheets",
+              "toolkit_slug": "google_sheets",
+              "action_name": "APPEND_ROW",
+              "required_inputs": [
+                {
+                  "name": "spreadsheet_id",
+                  "source": "{{inputs.sheet_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "values",
+                  "source": "{{[trigger.stripe_payment.customer.name, trigger.stripe_payment.customer.email]}}",
+                  "type": "array"
+                }
+              ],
+              "depends_on": [
+                "stripe_payment"
+              ]
+            },
+            {
+              "id": "send_slack",
+              "toolkit_slug": "slack",
+              "action_name": "POST_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "channel",
+                  "source": "#sales",
+                  "type": "string"
+                },
+                {
+                  "name": "message",
+                  "source": "\ud83c\udf89 New customer alert! Welcome {{trigger.stripe_payment.customer.name}} to our family!",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "stripe_payment"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "84a0c856-b669-4c40-aeb2-c6aedfb4bf74",
+            "title": "New Customer Celebration",
+            "description": "When a new customer pays via Stripe, add them to Google Sheets and post a celebration in Slack",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "New Customer Celebration",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "stripe_payment",
+                "type": "event_based",
+                "toolkit_slug": "stripe",
+                "composio_trigger_slug": "PAYMENT_SUCCEEDED"
+              },
+              "actions": [
+                {
+                  "id": "add_to_sheets",
+                  "toolkit_slug": "google_sheets",
+                  "action_name": "APPEND_ROW",
+                  "required_inputs": [
+                    {
+                      "name": "spreadsheet_id",
+                      "source": "{{inputs.sheet_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "values",
+                      "source": "{{[trigger.stripe_payment.customer.name, trigger.stripe_payment.customer.email]}}",
+                      "type": "array"
+                    }
+                  ],
+                  "depends_on": [
+                    "stripe_payment"
+                  ]
+                },
+                {
+                  "id": "send_slack",
+                  "toolkit_slug": "slack",
+                  "action_name": "POST_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "channel",
+                      "source": "#sales",
+                      "type": "string"
+                    },
+                    {
+                      "name": "message",
+                      "source": "\ud83c\udf89 New customer alert! Welcome {{trigger.stripe_payment.customer.name}} to our family!",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "stripe_payment"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.sheet_id",
+                "prompt": "What is the ID of your 'New Customers' Google Sheet?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "stripe",
+              "google_sheets",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "New Customer Celebration",
+                "description": "When a new customer pays via Stripe, add them to Google Sheets and post a celebration in Slack",
+                "triggers": [
+                  {
+                    "id": "stripe_payment",
+                    "type": "event_based",
+                    "toolkit_slug": "stripe",
+                    "composio_trigger_slug": "PAYMENT_SUCCEEDED"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "add_to_sheets",
+                    "toolkit_slug": "google_sheets",
+                    "action_name": "APPEND_ROW",
+                    "required_inputs": [
+                      {
+                        "name": "spreadsheet_id",
+                        "source": "{{inputs.sheet_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "values",
+                        "source": "{{[trigger.stripe_payment.customer.name, trigger.stripe_payment.customer.email]}}",
+                        "type": "array"
+                      }
+                    ],
+                    "depends_on": [
+                      "stripe_payment"
+                    ]
+                  },
+                  {
+                    "id": "send_slack",
+                    "toolkit_slug": "slack",
+                    "action_name": "POST_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "channel",
+                        "source": "#sales",
+                        "type": "string"
+                      },
+                      {
+                        "name": "message",
+                        "source": "\ud83c\udf89 New customer alert! Welcome {{trigger.stripe_payment.customer.name}} to our family!",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "stripe_payment"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.sheet_id",
+                  "prompt": "What is the ID of your 'New Customers' Google Sheet?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_003_SOCIAL_MEDIA_VAGUE",
+      "prompt": "Automate my social media presence by posting my new YouTube videos to my Twitter feed.",
+      "latency_ms": 9464,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'POST_TWEET' in toolkit 'twitter'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "YouTube to Twitter Auto-Poster",
+          "triggers": [
+            {
+              "id": "new_youtube_video",
+              "type": "event_based",
+              "toolkit_slug": "youtube",
+              "composio_trigger_slug": "NEW_VIDEO_PUBLISHED"
+            }
+          ],
+          "actions": [
+            {
+              "id": "post_tweet",
+              "toolkit_slug": "twitter",
+              "action_name": "POST_TWEET",
+              "required_inputs": [
+                {
+                  "name": "tweet_text",
+                  "source": "New video: {{trigger.video_title}} {{trigger.video_url}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "new_youtube_video"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "f6f01d82-db24-4f4c-bba7-3cba4006b056",
+            "title": "YouTube to Twitter Auto-Poster",
+            "description": "Automatically posts new YouTube videos to Twitter when they are published",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "YouTube to Twitter Auto-Poster",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "new_youtube_video",
+                "type": "event_based",
+                "toolkit_slug": "youtube",
+                "composio_trigger_slug": "NEW_VIDEO_PUBLISHED"
+              },
+              "actions": [
+                {
+                  "id": "post_tweet",
+                  "toolkit_slug": "twitter",
+                  "action_name": "POST_TWEET",
+                  "required_inputs": [
+                    {
+                      "name": "tweet_text",
+                      "source": "New video: {{trigger.video_title}} {{trigger.video_url}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "new_youtube_video"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "youtube_channel_id",
+                "prompt": "What is your YouTube channel ID?",
+                "type_hint": "string"
+              },
+              {
+                "path": "twitter_credentials",
+                "prompt": "Please authorize access to your Twitter account",
+                "type_hint": "oauth"
+              }
+            ],
+            "confidence": 0.9,
+            "apps": [
+              "twitter",
+              "youtube"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "YouTube to Twitter Auto-Poster",
+                "description": "Automatically posts new YouTube videos to Twitter when they are published",
+                "missing_required_toolkits": [
+                  "youtube",
+                  "twitter"
+                ],
+                "triggers": [
+                  {
+                    "id": "new_youtube_video",
+                    "type": "event_based",
+                    "toolkit_slug": "youtube",
+                    "composio_trigger_slug": "NEW_VIDEO_PUBLISHED"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "post_tweet",
+                    "toolkit_slug": "twitter",
+                    "action_name": "POST_TWEET",
+                    "required_inputs": [
+                      {
+                        "name": "tweet_text",
+                        "source": "New video: {{trigger.video_title}} {{trigger.video_url}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "new_youtube_video"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "youtube_channel_id",
+                  "prompt": "What is your YouTube channel ID?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "twitter_credentials",
+                  "prompt": "Please authorize access to your Twitter account",
+                  "type": "oauth",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_004_SCHEDULING_DAILY_REPORT",
+      "prompt": "Send me a daily summary of new high-priority issues from my GitHub repository to my email every morning at 8 AM.",
+      "latency_ms": 9499,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Unknown toolkit: github', 'Unknown toolkit: email', 'Unknown toolkit: time']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "GitHub Issues Daily Summary",
+          "triggers": [
+            {
+              "id": "schedule_trigger",
+              "type": "schedule",
+              "toolkit_slug": "time",
+              "composio_trigger_slug": "SCHEDULE",
+              "schedule": "0 8 * * *"
+            }
+          ],
+          "actions": [
+            {
+              "id": "github_issues",
+              "toolkit_slug": "github",
+              "action_name": "LIST_ISSUES",
+              "required_inputs": [
+                {
+                  "name": "repository",
+                  "source": "{{inputs.repository}}",
+                  "type": "string"
+                },
+                {
+                  "name": "labels",
+                  "source": "high-priority",
+                  "type": "string"
+                },
+                {
+                  "name": "state",
+                  "source": "open",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "schedule_trigger"
+              ]
+            },
+            {
+              "id": "send_email",
+              "toolkit_slug": "email",
+              "action_name": "SEND_EMAIL",
+              "required_inputs": [
+                {
+                  "name": "to",
+                  "source": "{{inputs.email}}",
+                  "type": "string"
+                },
+                {
+                  "name": "subject",
+                  "source": "Daily GitHub High-Priority Issues Summary",
+                  "type": "string"
+                },
+                {
+                  "name": "body",
+                  "source": "{{actions.github_issues.output}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "github_issues"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "2a2517e4-3e22-480e-9149-35c2da94442e",
+            "title": "GitHub Issues Daily Summary",
+            "description": "Send a daily email summary of high-priority GitHub issues at 8 AM",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "GitHub Issues Daily Summary",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "schedule_trigger",
+                "type": "schedule",
+                "toolkit_slug": "time",
+                "composio_trigger_slug": "SCHEDULE",
+                "schedule": "0 8 * * *"
+              },
+              "actions": [
+                {
+                  "id": "github_issues",
+                  "toolkit_slug": "github",
+                  "action_name": "LIST_ISSUES",
+                  "required_inputs": [
+                    {
+                      "name": "repository",
+                      "source": "{{inputs.repository}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "labels",
+                      "source": "high-priority",
+                      "type": "string"
+                    },
+                    {
+                      "name": "state",
+                      "source": "open",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "schedule_trigger"
+                  ]
+                },
+                {
+                  "id": "send_email",
+                  "toolkit_slug": "email",
+                  "action_name": "SEND_EMAIL",
+                  "required_inputs": [
+                    {
+                      "name": "to",
+                      "source": "{{inputs.email}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "subject",
+                      "source": "Daily GitHub High-Priority Issues Summary",
+                      "type": "string"
+                    },
+                    {
+                      "name": "body",
+                      "source": "{{actions.github_issues.output}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "github_issues"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.repository",
+                "prompt": "What is your GitHub repository name (in format 'owner/repo')?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.email",
+                "prompt": "What email address should receive the daily summary?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.9,
+            "apps": [
+              "github",
+              "time",
+              "email"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "GitHub Issues Daily Summary",
+                "description": "Send a daily email summary of high-priority GitHub issues at 8 AM",
+                "triggers": [
+                  {
+                    "id": "schedule_trigger",
+                    "type": "schedule",
+                    "toolkit_slug": "time",
+                    "composio_trigger_slug": "SCHEDULE",
+                    "schedule": "0 8 * * *"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "github_issues",
+                    "toolkit_slug": "github",
+                    "action_name": "LIST_ISSUES",
+                    "required_inputs": [
+                      {
+                        "name": "repository",
+                        "source": "{{inputs.repository}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "labels",
+                        "source": "high-priority",
+                        "type": "string"
+                      },
+                      {
+                        "name": "state",
+                        "source": "open",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "schedule_trigger"
+                    ]
+                  },
+                  {
+                    "id": "send_email",
+                    "toolkit_slug": "email",
+                    "action_name": "SEND_EMAIL",
+                    "required_inputs": [
+                      {
+                        "name": "to",
+                        "source": "{{inputs.email}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "subject",
+                        "source": "Daily GitHub High-Priority Issues Summary",
+                        "type": "string"
+                      },
+                      {
+                        "name": "body",
+                        "source": "{{actions.github_issues.output}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "github_issues"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.repository",
+                  "prompt": "What is your GitHub repository name (in format 'owner/repo')?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.email",
+                  "prompt": "What email address should receive the daily summary?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_005_DATA_TRANSFORMATION_AI",
+      "prompt": "When I save a long article to Notion, use AI to summarize it and then add the summary as a comment to the Notion page.",
+      "latency_ms": 9847,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'GET_PAGE_CONTENT' in toolkit 'notion'\", 'Unknown toolkit: openai', \"Unknown action 'CREATE_PAGE_COMMENT' in toolkit 'notion'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Notion Article Summary",
+          "triggers": [
+            {
+              "id": "notion_page_created",
+              "type": "event_based",
+              "toolkit_slug": "notion",
+              "composio_trigger_slug": "NOTION_PAGE_CREATED"
+            }
+          ],
+          "actions": [
+            {
+              "id": "get_page_content",
+              "toolkit_slug": "notion",
+              "action_name": "GET_PAGE_CONTENT",
+              "required_inputs": [
+                {
+                  "name": "page_id",
+                  "source": "{{trigger.notion_page_created.page_id}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "notion_page_created"
+              ]
+            },
+            {
+              "id": "generate_summary",
+              "toolkit_slug": "openai",
+              "action_name": "GENERATE_COMPLETION",
+              "required_inputs": [
+                {
+                  "name": "prompt",
+                  "source": "Please summarize this article in 3-4 concise paragraphs: {{actions.get_page_content.content}}",
+                  "type": "string"
+                },
+                {
+                  "name": "max_tokens",
+                  "source": "500",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "get_page_content"
+              ]
+            },
+            {
+              "id": "add_comment",
+              "toolkit_slug": "notion",
+              "action_name": "CREATE_PAGE_COMMENT",
+              "required_inputs": [
+                {
+                  "name": "page_id",
+                  "source": "{{trigger.notion_page_created.page_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "comment_text",
+                  "source": "Article Summary:\n\n{{actions.generate_summary.response}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "generate_summary"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "229f4137-71f5-4175-a650-7a06c94d437c",
+            "title": "Notion Article Summary",
+            "description": "When a new article is saved to Notion, use AI to generate a summary and add it as a comment",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Notion Article Summary",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "notion_page_created",
+                "type": "event_based",
+                "toolkit_slug": "notion",
+                "composio_trigger_slug": "NOTION_PAGE_CREATED"
+              },
+              "actions": [
+                {
+                  "id": "get_page_content",
+                  "toolkit_slug": "notion",
+                  "action_name": "GET_PAGE_CONTENT",
+                  "required_inputs": [
+                    {
+                      "name": "page_id",
+                      "source": "{{trigger.notion_page_created.page_id}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "notion_page_created"
+                  ]
+                },
+                {
+                  "id": "generate_summary",
+                  "toolkit_slug": "openai",
+                  "action_name": "GENERATE_COMPLETION",
+                  "required_inputs": [
+                    {
+                      "name": "prompt",
+                      "source": "Please summarize this article in 3-4 concise paragraphs: {{actions.get_page_content.content}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "max_tokens",
+                      "source": "500",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "get_page_content"
+                  ]
+                },
+                {
+                  "id": "add_comment",
+                  "toolkit_slug": "notion",
+                  "action_name": "CREATE_PAGE_COMMENT",
+                  "required_inputs": [
+                    {
+                      "name": "page_id",
+                      "source": "{{trigger.notion_page_created.page_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "comment_text",
+                      "source": "Article Summary:\n\n{{actions.generate_summary.response}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "generate_summary"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 1.0,
+            "apps": [
+              "openai",
+              "notion"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Notion Article Summary",
+                "description": "When a new article is saved to Notion, use AI to generate a summary and add it as a comment",
+                "triggers": [
+                  {
+                    "id": "notion_page_created",
+                    "type": "event_based",
+                    "toolkit_slug": "notion",
+                    "composio_trigger_slug": "NOTION_PAGE_CREATED"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "get_page_content",
+                    "toolkit_slug": "notion",
+                    "action_name": "GET_PAGE_CONTENT",
+                    "required_inputs": [
+                      {
+                        "name": "page_id",
+                        "source": "{{trigger.notion_page_created.page_id}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "notion_page_created"
+                    ]
+                  },
+                  {
+                    "id": "generate_summary",
+                    "toolkit_slug": "openai",
+                    "action_name": "GENERATE_COMPLETION",
+                    "required_inputs": [
+                      {
+                        "name": "prompt",
+                        "source": "Please summarize this article in 3-4 concise paragraphs: {{actions.get_page_content.content}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "max_tokens",
+                        "source": "500",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "get_page_content"
+                    ]
+                  },
+                  {
+                    "id": "add_comment",
+                    "toolkit_slug": "notion",
+                    "action_name": "CREATE_PAGE_COMMENT",
+                    "required_inputs": [
+                      {
+                        "name": "page_id",
+                        "source": "{{trigger.notion_page_created.page_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "comment_text",
+                        "source": "Article Summary:\n\n{{actions.generate_summary.response}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "generate_summary"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_006_FILE_HANDLING",
+      "prompt": "When a new PDF is uploaded to my 'Contracts' folder in Google Drive, send a notification to the #legal channel in Slack.",
+      "latency_ms": 8302,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'SEND_MESSAGE' in toolkit 'slack'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Google Drive PDF to Slack Notification",
+          "triggers": [
+            {
+              "id": "drive_trigger",
+              "type": "event_based",
+              "toolkit_slug": "google_drive",
+              "composio_trigger_slug": "NEW_FILE_IN_FOLDER"
+            }
+          ],
+          "actions": [
+            {
+              "id": "slack_notify",
+              "toolkit_slug": "slack",
+              "action_name": "SEND_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "channel",
+                  "source": "legal",
+                  "type": "string"
+                },
+                {
+                  "name": "message",
+                  "source": "New contract PDF uploaded: {{trigger.file_name}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "drive_trigger"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "20ad50fd-ec67-4b71-bf3c-f140a51d1562",
+            "title": "Google Drive PDF to Slack Notification",
+            "description": "Send a Slack notification to the #legal channel when a new PDF is uploaded to the Contracts folder in Google Drive",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Google Drive PDF to Slack Notification",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "drive_trigger",
+                "type": "event_based",
+                "toolkit_slug": "google_drive",
+                "composio_trigger_slug": "NEW_FILE_IN_FOLDER"
+              },
+              "actions": [
+                {
+                  "id": "slack_notify",
+                  "toolkit_slug": "slack",
+                  "action_name": "SEND_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "channel",
+                      "source": "legal",
+                      "type": "string"
+                    },
+                    {
+                      "name": "message",
+                      "source": "New contract PDF uploaded: {{trigger.file_name}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "drive_trigger"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "trigger.folder_id",
+                "prompt": "Please provide the Google Drive folder ID for your Contracts folder",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "slack",
+              "google_drive"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Google Drive PDF to Slack Notification",
+                "description": "Send a Slack notification to the #legal channel when a new PDF is uploaded to the Contracts folder in Google Drive",
+                "triggers": [
+                  {
+                    "id": "drive_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "google_drive",
+                    "composio_trigger_slug": "NEW_FILE_IN_FOLDER"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "slack_notify",
+                    "toolkit_slug": "slack",
+                    "action_name": "SEND_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "channel",
+                        "source": "legal",
+                        "type": "string"
+                      },
+                      {
+                        "name": "message",
+                        "source": "New contract PDF uploaded: {{trigger.file_name}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "drive_trigger"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "trigger.folder_id",
+                  "prompt": "Please provide the Google Drive folder ID for your Contracts folder",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_007_ECOMMERCE_SHOPIFY",
+      "prompt": "When a new order is placed on Shopify for more than $100, add the customer to my 'VIP Customers' list in Mailchimp.",
+      "latency_ms": 8085,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Unknown toolkit: mailchimp']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Shopify VIP Customer to Mailchimp",
+          "triggers": [
+            {
+              "id": "new_order",
+              "type": "event_based",
+              "toolkit_slug": "shopify",
+              "composio_trigger_slug": "NEW_ORDER"
+            }
+          ],
+          "actions": [
+            {
+              "id": "add_to_list",
+              "toolkit_slug": "mailchimp",
+              "action_name": "ADD_LIST_MEMBER",
+              "required_inputs": [
+                {
+                  "name": "list_id",
+                  "source": "{{inputs.mailchimp_list_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "email",
+                  "source": "{{trigger.customer.email}}",
+                  "type": "string"
+                },
+                {
+                  "name": "first_name",
+                  "source": "{{trigger.customer.first_name}}",
+                  "type": "string"
+                },
+                {
+                  "name": "last_name",
+                  "source": "{{trigger.customer.last_name}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "new_order"
+              ],
+              "conditions": [
+                {
+                  "field": "{{trigger.total_price}}",
+                  "operator": "greater_than",
+                  "value": 100
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "67dab0ac-dfff-42db-ba6d-9dd996d9baa7",
+            "title": "Shopify VIP Customer to Mailchimp",
+            "description": "Add customers who place orders over $100 on Shopify to a VIP Customers list in Mailchimp",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Shopify VIP Customer to Mailchimp",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "new_order",
+                "type": "event_based",
+                "toolkit_slug": "shopify",
+                "composio_trigger_slug": "NEW_ORDER"
+              },
+              "actions": [
+                {
+                  "id": "add_to_list",
+                  "toolkit_slug": "mailchimp",
+                  "action_name": "ADD_LIST_MEMBER",
+                  "required_inputs": [
+                    {
+                      "name": "list_id",
+                      "source": "{{inputs.mailchimp_list_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "email",
+                      "source": "{{trigger.customer.email}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "first_name",
+                      "source": "{{trigger.customer.first_name}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "last_name",
+                      "source": "{{trigger.customer.last_name}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "new_order"
+                  ],
+                  "conditions": [
+                    {
+                      "field": "{{trigger.total_price}}",
+                      "operator": "greater_than",
+                      "value": 100
+                    }
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.mailchimp_list_id",
+                "prompt": "What is the ID of your VIP Customers list in Mailchimp?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "shopify",
+              "mailchimp"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Shopify VIP Customer to Mailchimp",
+                "description": "Add customers who place orders over $100 on Shopify to a VIP Customers list in Mailchimp",
+                "triggers": [
+                  {
+                    "id": "new_order",
+                    "type": "event_based",
+                    "toolkit_slug": "shopify",
+                    "composio_trigger_slug": "NEW_ORDER"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "add_to_list",
+                    "toolkit_slug": "mailchimp",
+                    "action_name": "ADD_LIST_MEMBER",
+                    "required_inputs": [
+                      {
+                        "name": "list_id",
+                        "source": "{{inputs.mailchimp_list_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "email",
+                        "source": "{{trigger.customer.email}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "first_name",
+                        "source": "{{trigger.customer.first_name}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "last_name",
+                        "source": "{{trigger.customer.last_name}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "new_order"
+                    ],
+                    "conditions": [
+                      {
+                        "field": "{{trigger.total_price}}",
+                        "operator": "greater_than",
+                        "value": 100
+                      }
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.mailchimp_list_id",
+                  "prompt": "What is the ID of your VIP Customers list in Mailchimp?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_008_CRM_VAGUE_PROMPT",
+      "prompt": "Help me manage my sales leads automatically.",
+      "latency_ms": 10245,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "Sales Lead Management Automation",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "d6347bdf-bba3-4145-b014-8f373e515f65",
+            "title": "Sales Lead Management Automation",
+            "description": "Without any available tools listed, I can only provide a basic workflow template structure for managing sales leads. Additional tools would be needed to implement specific actions.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Sales Lead Management Automation",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "trigger_source",
+                "prompt": "How would you like to capture new sales leads? (e.g., form submissions, email, CRM)",
+                "type_hint": "string"
+              },
+              {
+                "path": "lead_data_fields",
+                "prompt": "What information do you want to capture for each lead? (e.g., name, email, phone, company)",
+                "type_hint": "string"
+              },
+              {
+                "path": "automation_actions",
+                "prompt": "What actions would you like to automate for each lead? (e.g., email notifications, CRM updates, task creation)",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.6,
+            "apps": [],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Sales Lead Management Automation",
+                "description": "Without any available tools listed, I can only provide a basic workflow template structure for managing sales leads. Additional tools would be needed to implement specific actions.",
+                "triggers": [],
+                "actions": []
+              },
+              "missing_information": [
+                {
+                  "field": "trigger_source",
+                  "prompt": "How would you like to capture new sales leads? (e.g., form submissions, email, CRM)",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "lead_data_fields",
+                  "prompt": "What information do you want to capture for each lead? (e.g., name, email, phone, company)",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "automation_actions",
+                  "prompt": "What actions would you like to automate for each lead? (e.g., email notifications, CRM updates, task creation)",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_009_PRODUCTIVITY_SLACK_TO_TRELLO",
+      "prompt": "If a message in our #bugs channel in Slack is reacted to with a \ud83d\udc1b emoji, create a new card in the 'Bugs' list on our Trello board.",
+      "latency_ms": 8694,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'CREATE_CARD' in toolkit 'trello'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Slack Bug to Trello Card",
+          "triggers": [
+            {
+              "id": "slack_reaction",
+              "type": "event_based",
+              "toolkit_slug": "slack",
+              "composio_trigger_slug": "REACTION_ADDED"
+            }
+          ],
+          "actions": [
+            {
+              "id": "create_trello_card",
+              "toolkit_slug": "trello",
+              "action_name": "CREATE_CARD",
+              "required_inputs": [
+                {
+                  "name": "list_id",
+                  "source": "{{inputs.trello_list_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "name",
+                  "source": "{{trigger.message_text}}",
+                  "type": "string"
+                },
+                {
+                  "name": "description",
+                  "source": "Created from Slack message in #bugs channel\nLink to message: {{trigger.message_link}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "slack_reaction"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "67333347-6248-436d-8196-798dc264c603",
+            "title": "Slack Bug to Trello Card",
+            "description": "When a message in the #bugs Slack channel gets a \ud83d\udc1b reaction, create a new card in the Trello Bugs list",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Slack Bug to Trello Card",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "slack_reaction",
+                "type": "event_based",
+                "toolkit_slug": "slack",
+                "composio_trigger_slug": "REACTION_ADDED"
+              },
+              "actions": [
+                {
+                  "id": "create_trello_card",
+                  "toolkit_slug": "trello",
+                  "action_name": "CREATE_CARD",
+                  "required_inputs": [
+                    {
+                      "name": "list_id",
+                      "source": "{{inputs.trello_list_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "name",
+                      "source": "{{trigger.message_text}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "description",
+                      "source": "Created from Slack message in #bugs channel\nLink to message: {{trigger.message_link}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "slack_reaction"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.trello_list_id",
+                "prompt": "What is the ID of your 'Bugs' list in Trello?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "trello",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Slack Bug to Trello Card",
+                "description": "When a message in the #bugs Slack channel gets a \ud83d\udc1b reaction, create a new card in the Trello Bugs list",
+                "triggers": [
+                  {
+                    "id": "slack_reaction",
+                    "type": "event_based",
+                    "toolkit_slug": "slack",
+                    "composio_trigger_slug": "REACTION_ADDED"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "create_trello_card",
+                    "toolkit_slug": "trello",
+                    "action_name": "CREATE_CARD",
+                    "required_inputs": [
+                      {
+                        "name": "list_id",
+                        "source": "{{inputs.trello_list_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "name",
+                        "source": "{{trigger.message_text}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "description",
+                        "source": "Created from Slack message in #bugs channel\nLink to message: {{trigger.message_link}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "slack_reaction"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.trello_list_id",
+                  "prompt": "What is the ID of your 'Bugs' list in Trello?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_010_SINGLE_TOOL_WORKFLOW",
+      "prompt": "Every time I receive an email in Gmail from 'billing@company.com', automatically apply the 'Finances' label to it.",
+      "latency_ms": 5630,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'ADD_LABEL' in toolkit 'gmail'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Auto-Label Finance Emails",
+          "triggers": [
+            {
+              "id": "new_email",
+              "type": "event_based",
+              "toolkit_slug": "gmail",
+              "composio_trigger_slug": "NEW_EMAIL"
+            }
+          ],
+          "actions": [
+            {
+              "id": "add_label",
+              "toolkit_slug": "gmail",
+              "action_name": "ADD_LABEL",
+              "required_inputs": [
+                {
+                  "name": "email_address",
+                  "source": "billing@company.com",
+                  "type": "string"
+                },
+                {
+                  "name": "label_name",
+                  "source": "Finances",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "new_email"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "454c09ba-923d-423e-967f-6a6e8678b8ab",
+            "title": "Auto-Label Finance Emails",
+            "description": "Automatically applies 'Finances' label to emails from billing@company.com in Gmail",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Auto-Label Finance Emails",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "new_email",
+                "type": "event_based",
+                "toolkit_slug": "gmail",
+                "composio_trigger_slug": "NEW_EMAIL"
+              },
+              "actions": [
+                {
+                  "id": "add_label",
+                  "toolkit_slug": "gmail",
+                  "action_name": "ADD_LABEL",
+                  "required_inputs": [
+                    {
+                      "name": "email_address",
+                      "source": "billing@company.com",
+                      "type": "string"
+                    },
+                    {
+                      "name": "label_name",
+                      "source": "Finances",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "new_email"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 1.0,
+            "apps": [
+              "gmail"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Auto-Label Finance Emails",
+                "description": "Automatically applies 'Finances' label to emails from billing@company.com in Gmail",
+                "triggers": [
+                  {
+                    "id": "new_email",
+                    "type": "event_based",
+                    "toolkit_slug": "gmail",
+                    "composio_trigger_slug": "NEW_EMAIL"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "add_label",
+                    "toolkit_slug": "gmail",
+                    "action_name": "ADD_LABEL",
+                    "required_inputs": [
+                      {
+                        "name": "email_address",
+                        "source": "billing@company.com",
+                        "type": "string"
+                      },
+                      {
+                        "name": "label_name",
+                        "source": "Finances",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "new_email"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_011_VAGUE_PROMPT_WITH_APPS",
+      "prompt": "Handle new customers.",
+      "latency_ms": 7788,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "New Customer Handler",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "id": "new_customer_check",
+              "description": "Initial customer verification and record creation",
+              "required_inputs": [
+                {
+                  "name": "customer_name",
+                  "source": "{{inputs.customer_name}}",
+                  "type": "string"
+                },
+                {
+                  "name": "customer_email",
+                  "source": "{{inputs.customer_email}}",
+                  "type": "string"
+                },
+                {
+                  "name": "customer_phone",
+                  "source": "{{inputs.customer_phone}}",
+                  "type": "string"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "37e4e85e-8eaa-4c6e-bbae-d82d078e8ef8",
+            "title": "New Customer Handler",
+            "description": "Manages and processes new customer interactions",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "New Customer Handler",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "id": "new_customer_check",
+                  "description": "Initial customer verification and record creation",
+                  "required_inputs": [
+                    {
+                      "name": "customer_name",
+                      "source": "{{inputs.customer_name}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "customer_email",
+                      "source": "{{inputs.customer_email}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "customer_phone",
+                      "source": "{{inputs.customer_phone}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.customer_name",
+                "prompt": "What is the customer's full name?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.customer_email",
+                "prompt": "What is the customer's email address?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.customer_phone",
+                "prompt": "What is the customer's phone number?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.7,
+            "apps": [
+              "stripe",
+              "salesforce"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "New Customer Handler",
+                "description": "Manages and processes new customer interactions",
+                "actions": [
+                  {
+                    "id": "new_customer_check",
+                    "description": "Initial customer verification and record creation",
+                    "required_inputs": [
+                      {
+                        "name": "customer_name",
+                        "source": "{{inputs.customer_name}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "customer_email",
+                        "source": "{{inputs.customer_email}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "customer_phone",
+                        "source": "{{inputs.customer_phone}}",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.customer_name",
+                  "prompt": "What is the customer's full name?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.customer_email",
+                  "prompt": "What is the customer's email address?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.customer_phone",
+                  "prompt": "What is the customer's phone number?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_012_FAILURE_MISSING_ACTION",
+      "prompt": "Post a message to our #deployments channel in Discord whenever a push is made to the main branch of our GitHub repository.",
+      "latency_ms": 7094,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'POST_MESSAGE' in toolkit 'discord'\", 'Unknown toolkit: github']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "GitHub Push to Discord Notification",
+          "triggers": [
+            {
+              "id": "github_push",
+              "type": "event_based",
+              "toolkit_slug": "github",
+              "composio_trigger_slug": "PUSH"
+            }
+          ],
+          "actions": [
+            {
+              "id": "discord_message",
+              "toolkit_slug": "discord",
+              "action_name": "POST_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "channel_id",
+                  "source": "{{inputs.discord_channel_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "message",
+                  "source": "New push to main branch by {{github_push.sender.login}}\nCommit message: {{github_push.head_commit.message}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "github_push"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "0d9aa7a1-ed3c-4e54-9e7c-faadf2b8d757",
+            "title": "GitHub Push to Discord Notification",
+            "description": "Posts a message to Discord when a push is made to the main branch",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "GitHub Push to Discord Notification",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "github_push",
+                "type": "event_based",
+                "toolkit_slug": "github",
+                "composio_trigger_slug": "PUSH"
+              },
+              "actions": [
+                {
+                  "id": "discord_message",
+                  "toolkit_slug": "discord",
+                  "action_name": "POST_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "channel_id",
+                      "source": "{{inputs.discord_channel_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "message",
+                      "source": "New push to main branch by {{github_push.sender.login}}\nCommit message: {{github_push.head_commit.message}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "github_push"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.discord_channel_id",
+                "prompt": "What is the ID of your Discord #deployments channel?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "github",
+              "discord"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "GitHub Push to Discord Notification",
+                "description": "Posts a message to Discord when a push is made to the main branch",
+                "triggers": [
+                  {
+                    "id": "github_push",
+                    "type": "event_based",
+                    "toolkit_slug": "github",
+                    "composio_trigger_slug": "PUSH"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "discord_message",
+                    "toolkit_slug": "discord",
+                    "action_name": "POST_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "channel_id",
+                        "source": "{{inputs.discord_channel_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "message",
+                        "source": "New push to main branch by {{github_push.sender.login}}\nCommit message: {{github_push.head_commit.message}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "github_push"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.discord_channel_id",
+                  "prompt": "What is the ID of your Discord #deployments channel?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_013_SPECIFIC_AND_COMPLEX",
+      "prompt": "When a Google Calendar event named 'Client Onboarding' is about to start, create a new Notion page for meeting notes from a template, and send a Slack DM to the attendees with the Notion page link.",
+      "latency_ms": 10309,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'CREATE_PAGE_FROM_TEMPLATE' in toolkit 'notion'\", \"Unknown action 'SEND_DIRECT_MESSAGE' in toolkit 'slack'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Client Onboarding Meeting Notes",
+          "triggers": [
+            {
+              "id": "calendar_trigger",
+              "type": "event_based",
+              "toolkit_slug": "google_calendar",
+              "composio_trigger_slug": "CALENDAR_EVENT_START"
+            }
+          ],
+          "actions": [
+            {
+              "id": "create_notion_page",
+              "toolkit_slug": "notion",
+              "action_name": "CREATE_PAGE_FROM_TEMPLATE",
+              "required_inputs": [
+                {
+                  "name": "template_id",
+                  "source": "{{inputs.notion_template_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "page_title",
+                  "source": "Client Onboarding Meeting Notes - {{trigger.event_date}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "calendar_trigger"
+              ]
+            },
+            {
+              "id": "send_slack_dm",
+              "toolkit_slug": "slack",
+              "action_name": "SEND_DIRECT_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "user_ids",
+                  "source": "{{trigger.attendees}}",
+                  "type": "string"
+                },
+                {
+                  "name": "message",
+                  "source": "Here's the Notion page for today's Client Onboarding meeting: {{actions.create_notion_page.page_url}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "create_notion_page"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "b9c619cb-7119-439b-9bdc-3696b08bd0a3",
+            "title": "Client Onboarding Meeting Notes",
+            "description": "Create Notion meeting notes and notify attendees via Slack when 'Client Onboarding' calendar event starts",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Client Onboarding Meeting Notes",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "calendar_trigger",
+                "type": "event_based",
+                "toolkit_slug": "google_calendar",
+                "composio_trigger_slug": "CALENDAR_EVENT_START"
+              },
+              "actions": [
+                {
+                  "id": "create_notion_page",
+                  "toolkit_slug": "notion",
+                  "action_name": "CREATE_PAGE_FROM_TEMPLATE",
+                  "required_inputs": [
+                    {
+                      "name": "template_id",
+                      "source": "{{inputs.notion_template_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "page_title",
+                      "source": "Client Onboarding Meeting Notes - {{trigger.event_date}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "calendar_trigger"
+                  ]
+                },
+                {
+                  "id": "send_slack_dm",
+                  "toolkit_slug": "slack",
+                  "action_name": "SEND_DIRECT_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "user_ids",
+                      "source": "{{trigger.attendees}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "message",
+                      "source": "Here's the Notion page for today's Client Onboarding meeting: {{actions.create_notion_page.page_url}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "create_notion_page"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.notion_template_id",
+                "prompt": "What is the ID of the Notion template to use for meeting notes?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "notion",
+              "google_calendar",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Client Onboarding Meeting Notes",
+                "description": "Create Notion meeting notes and notify attendees via Slack when 'Client Onboarding' calendar event starts",
+                "triggers": [
+                  {
+                    "id": "calendar_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "google_calendar",
+                    "composio_trigger_slug": "CALENDAR_EVENT_START"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "create_notion_page",
+                    "toolkit_slug": "notion",
+                    "action_name": "CREATE_PAGE_FROM_TEMPLATE",
+                    "required_inputs": [
+                      {
+                        "name": "template_id",
+                        "source": "{{inputs.notion_template_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "page_title",
+                        "source": "Client Onboarding Meeting Notes - {{trigger.event_date}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "calendar_trigger"
+                    ]
+                  },
+                  {
+                    "id": "send_slack_dm",
+                    "toolkit_slug": "slack",
+                    "action_name": "SEND_DIRECT_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "user_ids",
+                        "source": "{{trigger.attendees}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "message",
+                        "source": "Here's the Notion page for today's Client Onboarding meeting: {{actions.create_notion_page.page_url}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "create_notion_page"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.notion_template_id",
+                  "prompt": "What is the ID of the Notion template to use for meeting notes?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_014_UNSUPPORTED_GRACEFUL_FAIL",
+      "prompt": "Send me a WhatsApp message every morning with the top story from Hacker News.",
+      "latency_ms": 8476,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "Daily Hacker News Top Story WhatsApp Alert",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "7fab01d6-e8a7-435d-a173-a2cfe4de59f1",
+            "title": "Daily Hacker News Top Story WhatsApp Alert",
+            "description": "This workflow currently cannot be completed as the required tools for fetching from Hacker News API and sending WhatsApp messages are not available in the provided tools list.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Daily Hacker News Top Story WhatsApp Alert",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.9,
+            "apps": [],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Daily Hacker News Top Story WhatsApp Alert",
+                "description": "This workflow currently cannot be completed as the required tools for fetching from Hacker News API and sending WhatsApp messages are not available in the provided tools list.",
+                "triggers": [],
+                "actions": []
+              },
+              "missing_information": [],
+              "errors": [
+                {
+                  "error_type": "missing_tools",
+                  "message": "This workflow requires tools for accessing Hacker News API and sending WhatsApp messages, but no appropriate tools are available in the provided tools list.",
+                  "required_tools": [
+                    "A tool to fetch from Hacker News API",
+                    "A tool to send WhatsApp messages"
+                  ]
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_015_WEEKLY_SCHEDULE",
+      "prompt": "Every Friday, get the total number of new customers from Stripe this week and post it to the #weekly-summary Slack channel.",
+      "latency_ms": 8461,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'LIST_CUSTOMERS' in toolkit 'stripe'\", \"Unknown action 'POST_MESSAGE' in toolkit 'slack'\", 'Unknown toolkit: schedule']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Weekly New Customers Report",
+          "triggers": [
+            {
+              "id": "schedule_trigger",
+              "type": "schedule",
+              "toolkit_slug": "schedule",
+              "composio_trigger_slug": "SCHEDULE",
+              "required_inputs": [
+                {
+                  "name": "cron",
+                  "source": "0 0 * * 5",
+                  "type": "string"
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "id": "stripe_customers",
+              "toolkit_slug": "stripe",
+              "action_name": "LIST_CUSTOMERS",
+              "required_inputs": [
+                {
+                  "name": "created_gte",
+                  "source": "{{date.start_of_week}}",
+                  "type": "string"
+                },
+                {
+                  "name": "created_lte",
+                  "source": "{{date.now}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "schedule_trigger"
+              ]
+            },
+            {
+              "id": "slack_message",
+              "toolkit_slug": "slack",
+              "action_name": "POST_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "channel",
+                  "source": "#weekly-summary",
+                  "type": "string"
+                },
+                {
+                  "name": "message",
+                  "source": "New customers this week: {{stripe_customers.total_count}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "stripe_customers"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "1cacd253-b39e-4aa7-aaf1-b2ed170f637a",
+            "title": "Weekly New Customers Report",
+            "description": "Every Friday, fetch new customer count from Stripe and post to Slack",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Weekly New Customers Report",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "schedule_trigger",
+                "type": "schedule",
+                "toolkit_slug": "schedule",
+                "composio_trigger_slug": "SCHEDULE",
+                "required_inputs": [
+                  {
+                    "name": "cron",
+                    "source": "0 0 * * 5",
+                    "type": "string"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "id": "stripe_customers",
+                  "toolkit_slug": "stripe",
+                  "action_name": "LIST_CUSTOMERS",
+                  "required_inputs": [
+                    {
+                      "name": "created_gte",
+                      "source": "{{date.start_of_week}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "created_lte",
+                      "source": "{{date.now}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "schedule_trigger"
+                  ]
+                },
+                {
+                  "id": "slack_message",
+                  "toolkit_slug": "slack",
+                  "action_name": "POST_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "channel",
+                      "source": "#weekly-summary",
+                      "type": "string"
+                    },
+                    {
+                      "name": "message",
+                      "source": "New customers this week: {{stripe_customers.total_count}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "stripe_customers"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.slack_channel",
+                "prompt": "Please confirm the Slack channel name where the summary should be posted",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "stripe",
+              "schedule",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Weekly New Customers Report",
+                "description": "Every Friday, fetch new customer count from Stripe and post to Slack",
+                "triggers": [
+                  {
+                    "id": "schedule_trigger",
+                    "type": "schedule",
+                    "toolkit_slug": "schedule",
+                    "composio_trigger_slug": "SCHEDULE",
+                    "required_inputs": [
+                      {
+                        "name": "cron",
+                        "source": "0 0 * * 5",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "stripe_customers",
+                    "toolkit_slug": "stripe",
+                    "action_name": "LIST_CUSTOMERS",
+                    "required_inputs": [
+                      {
+                        "name": "created_gte",
+                        "source": "{{date.start_of_week}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "created_lte",
+                        "source": "{{date.now}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "schedule_trigger"
+                    ]
+                  },
+                  {
+                    "id": "slack_message",
+                    "toolkit_slug": "slack",
+                    "action_name": "POST_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "channel",
+                        "source": "#weekly-summary",
+                        "type": "string"
+                      },
+                      {
+                        "name": "message",
+                        "source": "New customers this week: {{stripe_customers.total_count}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "stripe_customers"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.slack_channel",
+                  "prompt": "Please confirm the Slack channel name where the summary should be posted",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
