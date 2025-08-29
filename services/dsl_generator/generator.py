@@ -130,6 +130,75 @@ class DSLGeneratorService:
                 missing_fields=[],
                 confidence=0.0
             )
+
+    async def generate_multiple_workflows(self, request: GenerationRequest, num_workflows: int = 1) -> List[GenerationResponse]:
+        """
+        Generate multiple workflow DSL templates in parallel.
+        
+        Args:
+            request: Generation request with user prompt and context
+            num_workflows: Number of workflows to generate (1-5)
+            
+        Returns:
+            List of GenerationResponse objects
+        """
+        if num_workflows < 1 or num_workflows > 5:
+            raise ValueError("num_workflows must be between 1 and 5")
+        
+        if num_workflows == 1:
+            # Single generation - use the existing method
+            response = await self.generate_workflow(request)
+            return [response]
+        
+        logger.info(f"Generating {num_workflows} workflows in parallel...")
+        
+        # Create tasks for parallel generation
+        tasks = []
+        for i in range(num_workflows):
+            # Create a slightly modified request for each generation to add variety
+            modified_request = GenerationRequest(
+                user_prompt=request.user_prompt,
+                selected_apps=request.selected_apps,
+                user_id=request.user_id,
+                workflow_type=request.workflow_type,
+                complexity=request.complexity
+            )
+            
+            # Add a small variation to the prompt to encourage diversity
+            if i > 0:
+                modified_request.user_prompt = f"{request.user_prompt} (variation {i+1})"
+            
+            task = self.generate_workflow(modified_request)
+            tasks.append(task)
+        
+        # Execute all generations in parallel
+        try:
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Process results and handle any exceptions
+            processed_responses = []
+            for i, response in enumerate(responses):
+                if isinstance(response, Exception):
+                    logger.warning(f"Generation {i+1} failed: {response}")
+                    # Create a fallback response for failed generations
+                    fallback_response = GenerationResponse(
+                        success=False,
+                        error_message=f"Generation failed: {str(response)}",
+                        missing_fields=[],
+                        confidence=0.0
+                    )
+                    processed_responses.append(fallback_response)
+                else:
+                    processed_responses.append(response)
+            
+            logger.info(f"Successfully generated {len(processed_responses)} workflows")
+            return processed_responses
+            
+        except Exception as e:
+            logger.error(f"Parallel workflow generation failed: {e}")
+            # Fallback to single generation
+            fallback_response = await self.generate_workflow(request)
+            return [fallback_response]
     
     async def _retrieve_relevant_tools(self, request: GenerationRequest) -> Optional[Dict[str, Any]]:
         """
@@ -402,9 +471,9 @@ class DSLGeneratorService:
                             for action_data in actions:
                                 if isinstance(action_data, dict):
                                     pruned_context['actions'].append({
+                                        **action_data,  # Spread the original data first
                                         'toolkit_slug': app_slug,
-                                        'action_slug': action_data.get('slug', ''),
-                                        **action_data
+                                        'action_slug': action_data.get('slug', '')  # Override with the slug last
                                     })
         
         logger.info(f"Strict search found {len(pruned_context['triggers'])} triggers and {len(pruned_context['actions'])} actions")
@@ -698,71 +767,285 @@ When I get a new lead in Salesforce, send a welcome email using SendGrid.
 ```
 Now, analyze the user request provided at the top and generate the JSON response."""
 
-    def _build_robust_claude_prompt(self, request: GenerationRequest, catalog_context: Dict[str, Any], previous_errors: List[str]) -> str:
-        """Builds the robust, XML-based prompt for Claude, including feedback on errors."""
-        # Build a proper tools structure from our context
-        tools_structure = {
-            "triggers": catalog_context.get("triggers", []),
-            "actions": catalog_context.get("actions", []),
-            "providers": catalog_context.get("providers", {})
-        }
-        tools_json = json.dumps(tools_structure, indent=2)
+    def _validate_generated_workflow(self, workflow_data: Dict[str, Any], catalog_context: Dict[str, Any]) -> List[str]:
+        """Validate the generated workflow against the available tools and schema requirements."""
+        errors = []
+        
+        # Create toolkit mapping for validation
+        toolkit_mapping = self._create_toolkit_mapping(catalog_context)
+        
+        # Validate triggers
+        if "triggers" in workflow_data.get("workflow", {}):
+            for trigger in workflow_data["workflow"]["triggers"]:
+                toolkit_slug = trigger.get("toolkit_slug")
+                trigger_slug = trigger.get("composio_trigger_slug")
+                
+                if not toolkit_slug:
+                    errors.append("Missing toolkit_slug in trigger")
+                elif toolkit_slug not in toolkit_mapping:
+                    errors.append(f"Unknown toolkit: {toolkit_slug}")
+                elif trigger_slug:
+                    if toolkit_slug in toolkit_mapping and "triggers" in toolkit_mapping[toolkit_slug]:
+                        if trigger_slug not in toolkit_mapping[toolkit_slug]["triggers"]:
+                            errors.append(f"Unknown trigger '{trigger_slug}' in toolkit '{toolkit_slug}'")
+                    else:
+                        errors.append(f"Toolkit '{toolkit_slug}' has no triggers")
+        
+        # Validate actions
+        if "actions" in workflow_data.get("workflow", {}):
+            for action in workflow_data["workflow"]["actions"]:
+                toolkit_slug = action.get("toolkit_slug")
+                action_name = action.get("action_name")
+                
+                if not toolkit_slug:
+                    errors.append("Missing toolkit_slug in action")
+                elif toolkit_slug not in toolkit_mapping:
+                    errors.append(f"Unknown toolkit: {toolkit_slug}")
+                elif action_name:
+                    if toolkit_slug in toolkit_mapping and "actions" in toolkit_mapping[toolkit_slug]:
+                        if action_name not in toolkit_mapping[toolkit_slug]["actions"]:
+                            errors.append(f"Unknown action '{action_name}' in toolkit '{toolkit_slug}'")
+                    else:
+                        errors.append(f"Toolkit '{toolkit_slug}' has no actions")
+                
+                # Validate required_inputs
+                required_inputs = action.get("required_inputs", [])
+                if isinstance(required_inputs, list):
+                    for input_param in required_inputs:
+                        if not isinstance(input_param, dict):
+                            errors.append(f"Invalid required_inputs format in action {action.get('id', 'unknown')}")
+                            continue
+                        
+                        if "name" not in input_param:
+                            errors.append(f"Missing 'name' in required_inputs for action {action.get('id', 'unknown')}")
+                        if "source" not in input_param:
+                            errors.append(f"Missing 'source' in required_inputs for action {action.get('id', 'unknown')}")
+                        if "type" not in input_param:
+                            errors.append(f"Missing 'type' in required_inputs for action {action.get('id', 'unknown')}")
+                        else:
+                            valid_types = ["string", "number", "boolean", "array"]
+                            if input_param["type"] not in valid_types:
+                                errors.append(f"Invalid type '{input_param['type']}' in required_inputs. Must be one of: {valid_types}")
+        
+        return errors
 
-        prompt = f"""You are an expert workflow designer. Your task is to create a multi-step workflow in JSON format based on the user's request, using ONLY the provided tools.
-<user_request>
-{request.user_prompt}
-</user_request>
-<available_tools>
-{tools_json}
-</available_tools>
-<instructions>
-1. Analyze the user request and the available tools to design a logical, multi-step workflow (at least 2 actions if possible).
-2. Your output MUST conform to the `template` schema.
-3. You MUST only use `toolkit_slug`, `composio_trigger_slug`, and `action_name` values that exist in the `<available_tools>` context. Do not invent them. The slugs must be an exact match.
-4. Populate the `missing_information` array for any required action inputs that cannot be inferred from the prompt.
-5. Your response MUST be a single, valid JSON object and nothing else. Do not add any conversational text or markdown formatting like \`\`\`json.
-</instructions>
-<multi_step_example>
-{{
+    def _create_toolkit_mapping(self, catalog_context: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        """Create a comprehensive mapping of available toolkits, triggers, and actions."""
+        toolkit_mapping = {}
+        
+        for slug, data in catalog_context.get("toolkits", {}).items():
+            toolkit_mapping[slug] = {
+                "name": data.get("name", slug),
+                "description": data.get("description", ""),
+                "triggers": {},
+                "actions": {}
+            }
+            
+            # Map triggers
+            for trigger in data.get("triggers", []):
+                trigger_slug = trigger.get('slug') or trigger.get('name')
+                if trigger_slug:
+                    toolkit_mapping[slug]["triggers"][trigger_slug] = {
+                        "name": trigger.get('name', trigger_slug),
+                        "description": trigger.get('description', ''),
+                        "parameters": trigger.get('parameters', [])
+                    }
+            
+            # Map actions
+            for action in data.get("actions", []):
+                action_name = action.get('slug') or action.get('name')
+                if action_name:
+                    toolkit_mapping[slug]["actions"][action_name] = {
+                        "name": action.get('name', action_name),
+                        "description": action.get('description', ''),
+                        "parameters": action.get('parameters', [])
+                    }
+        
+        return toolkit_mapping
+
+    def _generate_dynamic_example(self, catalog_context: Dict[str, Any]) -> str:
+        """Generate a dynamic example based on the available tools in the catalog context."""
+        
+        # Find the first available toolkit with both triggers and actions
+        example_toolkit = None
+        example_trigger = None
+        example_action = None
+        
+        for slug, data in catalog_context.get("toolkits", {}).items():
+            if data.get("triggers") and data.get("actions"):
+                example_toolkit = slug
+                example_trigger = data["triggers"][0] if data["triggers"] else None
+                example_action = data["actions"][0] if data["actions"] else None
+                break
+        
+        if not example_toolkit or not example_trigger or not example_action:
+            # Fallback to a generic example
+            return self._get_fallback_example()
+        
+        # Extract the actual slugs/names
+        trigger_slug = example_trigger.get('slug') or example_trigger.get('name') or "EXAMPLE_TRIGGER"
+        action_name = example_action.get('slug') or example_action.get('name') or "EXAMPLE_ACTION"
+        
+        # Generate a contextual example
+        example = f"""{{
 "schema_type": "template",
 "workflow": {{
-"name": "GitHub Issue to Slack Notification",
-"description": "When a new issue is created in a GitHub repo, post a message to a Slack channel.",
+"name": "Example Workflow using {example_toolkit.title()}",
+"description": "Example workflow using {example_toolkit} toolkit",
 "triggers": [{{
-"id": "github_new_issue",
+"id": "example_trigger",
 "type": "event_based",
-"toolkit_slug": "github",
-"composio_trigger_slug": "new_issue"
+"toolkit_slug": "{example_toolkit}",
+"composio_trigger_slug": "{trigger_slug}"
 }}],
 "actions": [{{
-"id": "slack_post_message",
-"toolkit_slug": "slack",
-"action_name": "SLACK_POST_MESSAGE",
+"id": "example_action",
+"toolkit_slug": "{example_toolkit}",
+"action_name": "{action_name}",
 "required_inputs": [
-{{ "name": "channel", "source": "{{{{inputs.slack_channel_id}}}}" }},
-{{ "name": "text", "source": "New GitHub Issue in {{{{trigger.repository}}}}: {{{{trigger.title}}}}" }}
+{{ "name": "example_param", "source": "{{{{inputs.example_input}}}}", "type": "string" }}
 ],
-"depends_on": ["github_new_issue"]
+"depends_on": ["example_trigger"]
 }}]
 }},
 "missing_information": [{{
-"field": "inputs.slack_channel_id",
-"prompt": "Which Slack channel should I post the notifications to? (e.g., #general)",
+"field": "inputs.example_input",
+"prompt": "What value should be used for the example parameter?",
 "type": "string",
 "required": true
 }}]
-}}
-</multi_step_example>
+}}"""
+        
+        return example
+    
+    def _get_fallback_example(self) -> str:
+        """Return a fallback example when no suitable tools are available."""
+        return """{
+"schema_type": "template",
+"workflow": {
+"name": "Example Workflow",
+"description": "Example workflow structure",
+"triggers": [{
+"id": "example_trigger",
+"type": "event_based",
+"toolkit_slug": "example_toolkit",
+"composio_trigger_slug": "EXAMPLE_TRIGGER"
+}],
+"actions": [{
+"id": "example_action",
+"toolkit_slug": "example_toolkit",
+"action_name": "EXAMPLE_ACTION",
+"required_inputs": [
+{ "name": "example_param", "source": "{{inputs.example_input}}", "type": "string" }
+],
+"depends_on": ["example_trigger"]
+}]
+},
+"missing_information": [{
+"field": "inputs.example_input",
+"prompt": "What value should be used for the example parameter?",
+"type": "string",
+"required": true
+}]
+}}"""
+
+    def _build_robust_claude_prompt(self, request: GenerationRequest, catalog_context: Dict[str, Any], previous_errors: List[str]) -> str:
+        """Builds an aggressive, explicit prompt for Claude with clear tool context and strict validation rules."""
+        
+        # Create comprehensive toolkit mapping
+        toolkit_mapping = self._create_toolkit_mapping(catalog_context)
+        
+        # --- IMPROVEMENT 1: Simplify the tool context ---
+        tool_list_str = ""
+        for slug, data in toolkit_mapping.items():
+            tool_list_str += f"\n--- Toolkit: {slug} ---\n"
+            if data.get("triggers"):
+                tool_list_str += "Triggers:\n"
+                for trigger_slug, trigger_data in data["triggers"].items():
+                    tool_list_str += f"  - composio_trigger_slug: {trigger_slug}\n"
+                    if trigger_data.get("description"):
+                        tool_list_str += f"    Description: {trigger_data['description']}\n"
+            if data.get("actions"):
+                tool_list_str += "Actions:\n"
+                for action_name, action_data in data["actions"].items():
+                    tool_list_str += f"  - action_name: {action_name}\n"
+                    if action_data.get("description"):
+                        tool_list_str += f"    Description: {action_data['description']}\n"
+
+        # Generate a dynamic example based on available tools
+        dynamic_example = self._generate_dynamic_example(catalog_context)
+
+        prompt = f"""<user_request>
+{request.user_prompt}
+</user_request>
+
+<available_tools>
+{tool_list_str}
+</available_tools>
+
+<instructions>
+1. Design a logical, multi-step workflow.
+2. Your output MUST conform to the `template` schema.
+3. Every object in `required_inputs` MUST have a "name", "source", and "type" key.
+4. Populate the `missing_information` array for any user inputs needed.
+5. Your response MUST be a single, valid JSON object and nothing else.
+6. NEVER invent or modify toolkit_slug, composio_trigger_slug, or action_name values.
+7. ONLY use the exact values from the <available_tools> section above.
+8. If you're unsure about a value, use the first available option from the list.
+9. Every parameter MUST have a "type" field - this is CRITICAL for validation.
+10. Use "string", "number", "boolean", or "array" as type values.
+11. COPY AND PASTE the exact slug/name values - do not modify them.
+12. Your JSON MUST be parseable by Python's json.loads().
+</instructions>
+
+<dynamic_example>
+{dynamic_example}
+</dynamic_example>
+
+<validation_rules>
+CRITICAL: Your JSON MUST pass these validation rules:
+- All required_inputs objects MUST have: name, source, type
+- All toolkit_slug values MUST exist in the available_tools
+- All composio_trigger_slug values MUST exist in the available_tools  
+- All action_name values MUST exist in the available_tools
+- No markdown formatting or code blocks
+- Pure JSON only
+- Every field must be properly quoted
+- No trailing commas
+</validation_rules>
+
+<error_prevention>
+COMMON MISTAKES TO AVOID:
+- Do NOT add markdown formatting like ```json
+- Do NOT add explanatory text before or after the JSON
+- Do NOT use placeholder values like "UNKNOWN_ACTION_NAME"
+- Do NOT invent new toolkit slugs or action names
+- Do NOT forget the "type" field in required_inputs
+- Do NOT use unquoted strings in JSON
+</error_prevention>
 """
         if previous_errors:
             errors_str = "\n".join(f"- {e}" for e in previous_errors)
             prompt += f"""
 <feedback>
-Your previous attempt failed with the following validation errors. You MUST fix them in your next response:
+Your previous attempt failed. You MUST fix these errors:
 {errors_str}
+
+IMPORTANT: Read the error messages carefully and fix each one before generating your response.
 </feedback>
 """
-        prompt += "\nNow, generate the complete JSON for the user's request."
+        # --- IMPROVEMENT 2: The Golden Rule at the end ---
+        prompt += """
+
+**CRITICAL FINAL INSTRUCTION:** 
+1. You MUST only use the exact `composio_trigger_slug` and `action_name` values from the `<available_tools>` list.
+2. Do not invent or modify them.
+3. Copy the values exactly as they appear.
+4. Generate ONLY the JSON response - no other text.
+5. Ensure your JSON is valid and parseable.
+
+Now, generate the complete JSON for the user's request."""
+        
         return prompt
     
     async def _generate_with_validation_loop(self, request: GenerationRequest, catalog_context: Dict[str, Any]) -> GenerationResponse:
@@ -801,6 +1084,30 @@ Your previous attempt failed with the following validation errors. You MUST fix 
                     previous_errors.append(error_msg)
                     logger.warning(f"Attempt {attempt + 1} failed during parsing: {error_msg}")
                     continue
+
+                # Perform custom validation against available tools
+                if parsed_response.dsl_template and hasattr(parsed_response.dsl_template, 'workflow'):
+                    workflow_data = parsed_response.dsl_template.workflow
+                    if isinstance(workflow_data, dict):
+                        # Convert to dict if it's a Pydantic model
+                        if hasattr(workflow_data, 'dict'):
+                            workflow_dict = workflow_data.dict()
+                        else:
+                            workflow_dict = workflow_data
+                        
+                        # Validate against available tools
+                        validation_errors = self._validate_generated_workflow(workflow_dict, catalog_context)
+                        
+                        if validation_errors:
+                            logger.warning(f"Custom validation failed with {len(validation_errors)} errors: {validation_errors}")
+                            previous_errors.extend(validation_errors)
+                            continue
+                        else:
+                            logger.info("Custom validation passed - workflow uses valid tools")
+                    else:
+                        logger.warning("Generated workflow is not in expected format")
+                        previous_errors.append("Generated workflow format is invalid")
+                        continue
 
                 # Skip validation - just return whatever Claude generated
                 logger.info("Skipping validation - returning Claude's generated workflow directly")

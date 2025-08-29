@@ -6,6 +6,7 @@ A modern, responsive web interface for building and managing automated workflows
 
 - **Home Page**: Describe what you want to automate and select integrations
 - **Workflow Suggestions**: AI-powered workflow recommendations based on your prompt
+  - **Multiple Suggestions**: Generate 1-5 workflow options in parallel for variety and choice
 - **Workflow Builder**: Visual workflow editor with drag-and-drop nodes
 - **Real-time Logs**: Live execution monitoring and debugging
 - **Integration Management**: Connect and manage various service integrations

@@ -1,0 +1,1640 @@
+{
+  "run_timestamp": "2025-08-28T22:19:36.210928",
+  "api_endpoint": "http://localhost:8001/api/suggestions:generate",
+  "summary": {
+    "total_cases": 15,
+    "pass_rate_percent": 53.33,
+    "average_latency_ms": 6403,
+    "average_accuracy_on_pass": 0.21
+  },
+  "results": [
+    {
+      "case_id": "CASE_001_GMAIL_TO_SLACK_SIMPLE",
+      "prompt": "When a new email arrives in my Gmail inbox, post the subject to the #general channel in Slack.",
+      "latency_ms": 9444,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Missing parameter type', 'Missing parameter type', \"Unknown action 'SLACK_RECEIVE_MESSAGE' in toolkit 'slack'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Gmail to Slack Subject Line",
+          "triggers": [
+            {
+              "id": "gmail_new_message",
+              "type": "event_based",
+              "toolkit_slug": "gmail",
+              "composio_trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "labelIds",
+                  "source": "INBOX"
+                },
+                {
+                  "name": "interval",
+                  "source": 1
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "id": "slack_post_message",
+              "toolkit_slug": "slack",
+              "action_name": "SLACK_RECEIVE_MESSAGE",
+              "required_inputs": [
+                {
+                  "name": "text",
+                  "source": "New Email: {{trigger.subject}}"
+                },
+                {
+                  "name": "channel",
+                  "source": "{{inputs.slack_channel}}"
+                }
+              ],
+              "depends_on": [
+                "gmail_new_message"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "d91c2e99-6daa-437a-af21-3455b66c941d",
+            "title": "Gmail to Slack Subject Line",
+            "description": "When a new email arrives in Gmail, post the subject line to a Slack channel.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Gmail to Slack Subject Line",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "gmail_new_message",
+                "type": "event_based",
+                "toolkit_slug": "gmail",
+                "composio_trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+                "required_inputs": [
+                  {
+                    "name": "labelIds",
+                    "source": "INBOX"
+                  },
+                  {
+                    "name": "interval",
+                    "source": 1
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "id": "slack_post_message",
+                  "toolkit_slug": "slack",
+                  "action_name": "SLACK_RECEIVE_MESSAGE",
+                  "required_inputs": [
+                    {
+                      "name": "text",
+                      "source": "New Email: {{trigger.subject}}"
+                    },
+                    {
+                      "name": "channel",
+                      "source": "{{inputs.slack_channel}}"
+                    }
+                  ],
+                  "depends_on": [
+                    "gmail_new_message"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.slack_channel",
+                "prompt": "Please provide the Slack channel ID for #general where messages should be posted",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "gmail",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Gmail to Slack Subject Line",
+                "description": "When a new email arrives in Gmail, post the subject line to a Slack channel.",
+                "triggers": [
+                  {
+                    "id": "gmail_new_message",
+                    "type": "event_based",
+                    "toolkit_slug": "gmail",
+                    "composio_trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "labelIds",
+                        "source": "INBOX"
+                      },
+                      {
+                        "name": "interval",
+                        "source": 1
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "slack_post_message",
+                    "toolkit_slug": "slack",
+                    "action_name": "SLACK_RECEIVE_MESSAGE",
+                    "required_inputs": [
+                      {
+                        "name": "text",
+                        "source": "New Email: {{trigger.subject}}"
+                      },
+                      {
+                        "name": "channel",
+                        "source": "{{inputs.slack_channel}}"
+                      }
+                    ],
+                    "depends_on": [
+                      "gmail_new_message"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.slack_channel",
+                  "prompt": "Please provide the Slack channel ID for #general where messages should be posted",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_002_STRIPE_MULTI_STEP",
+      "prompt": "When a new customer pays via Stripe, add their name and email to a 'New Customers' Google Sheet, and then post a celebration message in the #sales channel on Slack.",
+      "latency_ms": 3298,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "7a6cefc4-0816-4e27-920d-e428f51461c2",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "stripe",
+              "googlesheets",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_003_SOCIAL_MEDIA_VAGUE",
+      "prompt": "Automate my social media presence by posting my new YouTube videos to my Twitter feed.",
+      "latency_ms": 14785,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Rule E002 failed: 'str' object has no attribute 'get'\", \"Unknown action 'List channel videos' in toolkit 'youtube'\", \"Unknown action 'Create a post' in toolkit 'twitter'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "YouTube to Twitter Auto-Poster",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "id": "list_channel_videos",
+              "toolkit_slug": "youtube",
+              "action_name": "List channel videos",
+              "required_inputs": {
+                "channelId": "{{inputs.youtube_channel_id}}",
+                "maxResults": 1
+              },
+              "depends_on": []
+            },
+            {
+              "id": "create_tweet",
+              "toolkit_slug": "twitter",
+              "action_name": "Create a post",
+              "required_inputs": {
+                "text": "New video on my YouTube channel! Check it out: https://youtube.com/watch?v={{list_channel_videos.data.response_data.items[0].id.videoId}}"
+              },
+              "depends_on": [
+                "list_channel_videos"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "a793e955-0263-4dee-aae0-84c64efbd566",
+            "title": "YouTube to Twitter Auto-Poster",
+            "description": "Automatically shares new YouTube videos to Twitter by creating a tweet when new videos are detected.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "YouTube to Twitter Auto-Poster",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "id": "list_channel_videos",
+                  "toolkit_slug": "youtube",
+                  "action_name": "List channel videos",
+                  "required_inputs": {
+                    "channelId": "{{inputs.youtube_channel_id}}",
+                    "maxResults": 1
+                  },
+                  "depends_on": []
+                },
+                {
+                  "id": "create_tweet",
+                  "toolkit_slug": "twitter",
+                  "action_name": "Create a post",
+                  "required_inputs": {
+                    "text": "New video on my YouTube channel! Check it out: https://youtube.com/watch?v={{list_channel_videos.data.response_data.items[0].id.videoId}}"
+                  },
+                  "depends_on": [
+                    "list_channel_videos"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.youtube_channel_id",
+                "prompt": "What is your YouTube channel ID? (Starts with 'UC', e.g., 'UC_x5XG1OV2P6uZZ5FSM9Ttw')",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.9,
+            "apps": [
+              "youtube",
+              "twitter"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "YouTube to Twitter Auto-Poster",
+                "description": "Automatically shares new YouTube videos to Twitter by creating a tweet when new videos are detected.",
+                "triggers": [],
+                "actions": [
+                  {
+                    "id": "list_channel_videos",
+                    "toolkit_slug": "youtube",
+                    "action_name": "List channel videos",
+                    "required_inputs": {
+                      "channelId": "{{inputs.youtube_channel_id}}",
+                      "maxResults": 1
+                    },
+                    "depends_on": []
+                  },
+                  {
+                    "id": "create_tweet",
+                    "toolkit_slug": "twitter",
+                    "action_name": "Create a post",
+                    "required_inputs": {
+                      "text": "New video on my YouTube channel! Check it out: https://youtube.com/watch?v={{list_channel_videos.data.response_data.items[0].id.videoId}}"
+                    },
+                    "depends_on": [
+                      "list_channel_videos"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.youtube_channel_id",
+                  "prompt": "What is your YouTube channel ID? (Starts with 'UC', e.g., 'UC_x5XG1OV2P6uZZ5FSM9Ttw')",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_004_SCHEDULING_DAILY_REPORT",
+      "prompt": "Send me a daily summary of new high-priority issues from my GitHub repository to my email every morning at 8 AM.",
+      "latency_ms": 10313,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Rule E002 failed: 'str' object has no attribute 'get'\", \"Unknown action 'GMAIL_NEW_GMAIL_MESSAGE' in toolkit 'gmail'\", 'Unknown toolkit: github']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Daily GitHub High Priority Issues Email Summary",
+          "triggers": [
+            {
+              "id": "github_issue_trigger",
+              "type": "event_based",
+              "toolkit_slug": "github",
+              "composio_trigger_slug": "GITHUB_ISSUE_ADDED_EVENT",
+              "required_inputs": {
+                "owner": "{{inputs.repo_owner}}",
+                "repo": "{{inputs.repo_name}}"
+              }
+            }
+          ],
+          "actions": [
+            {
+              "id": "send_email_summary",
+              "toolkit_slug": "gmail",
+              "action_name": "GMAIL_NEW_GMAIL_MESSAGE",
+              "required_inputs": {
+                "to": "{{inputs.email_address}}",
+                "subject": "Daily GitHub High Priority Issues Summary",
+                "message_text": "New high-priority issue created:\nTitle: {{trigger.title}}\nCreated by: {{trigger.createdBy}}\nDescription: {{trigger.description}}\nURL: {{trigger.url}}"
+              },
+              "depends_on": [
+                "github_issue_trigger"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "1f1de898-c381-43f3-8376-22745f0a5a85",
+            "title": "Daily GitHub High Priority Issues Email Summary",
+            "description": "Checks for new high-priority issues in a GitHub repository and sends a daily email summary at 8 AM.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Daily GitHub High Priority Issues Email Summary",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "github_issue_trigger",
+                "type": "event_based",
+                "toolkit_slug": "github",
+                "composio_trigger_slug": "GITHUB_ISSUE_ADDED_EVENT",
+                "required_inputs": {
+                  "owner": "{{inputs.repo_owner}}",
+                  "repo": "{{inputs.repo_name}}"
+                }
+              },
+              "actions": [
+                {
+                  "id": "send_email_summary",
+                  "toolkit_slug": "gmail",
+                  "action_name": "GMAIL_NEW_GMAIL_MESSAGE",
+                  "required_inputs": {
+                    "to": "{{inputs.email_address}}",
+                    "subject": "Daily GitHub High Priority Issues Summary",
+                    "message_text": "New high-priority issue created:\nTitle: {{trigger.title}}\nCreated by: {{trigger.createdBy}}\nDescription: {{trigger.description}}\nURL: {{trigger.url}}"
+                  },
+                  "depends_on": [
+                    "github_issue_trigger"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.repo_owner",
+                "prompt": "What is the GitHub repository owner's username?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.repo_name",
+                "prompt": "What is the name of the GitHub repository?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.email_address",
+                "prompt": "What email address should receive the daily summaries?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "gmail",
+              "github"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Daily GitHub High Priority Issues Email Summary",
+                "description": "Checks for new high-priority issues in a GitHub repository and sends a daily email summary at 8 AM.",
+                "triggers": [
+                  {
+                    "id": "github_issue_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "github",
+                    "composio_trigger_slug": "GITHUB_ISSUE_ADDED_EVENT",
+                    "required_inputs": {
+                      "owner": "{{inputs.repo_owner}}",
+                      "repo": "{{inputs.repo_name}}"
+                    }
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "send_email_summary",
+                    "toolkit_slug": "gmail",
+                    "action_name": "GMAIL_NEW_GMAIL_MESSAGE",
+                    "required_inputs": {
+                      "to": "{{inputs.email_address}}",
+                      "subject": "Daily GitHub High Priority Issues Summary",
+                      "message_text": "New high-priority issue created:\nTitle: {{trigger.title}}\nCreated by: {{trigger.createdBy}}\nDescription: {{trigger.description}}\nURL: {{trigger.url}}"
+                    },
+                    "depends_on": [
+                      "github_issue_trigger"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.repo_owner",
+                  "prompt": "What is the GitHub repository owner's username?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.repo_name",
+                  "prompt": "What is the name of the GitHub repository?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.email_address",
+                  "prompt": "What email address should receive the daily summaries?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_005_DATA_TRANSFORMATION_AI",
+      "prompt": "When I save a long article to Notion, use AI to summarize it and then add the summary as a comment to the Notion page.",
+      "latency_ms": 2171,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "1ffaaf8a-c018-45eb-8911-c78556c4df40",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "notion",
+              "openai"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_006_FILE_HANDLING",
+      "prompt": "When a new PDF is uploaded to my 'Contracts' folder in Google Drive, send a notification to the #legal channel in Slack.",
+      "latency_ms": 2168,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "d5e36513-67ec-444c-b1aa-ea6abc9d0613",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "google_drive",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_007_ECOMMERCE_SHOPIFY",
+      "prompt": "When a new order is placed on Shopify for more than $100, add the customer to my 'VIP Customers' list in Mailchimp.",
+      "latency_ms": 1916,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "9ab72fd3-62cd-47ef-b39b-6cb44c2b649a",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "shopify",
+              "mailchimp"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_008_CRM_VAGUE_PROMPT",
+      "prompt": "Help me manage my sales leads automatically.",
+      "latency_ms": 8388,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Unknown toolkit: leadoku']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Automatic Sales Lead Management",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "id": "get_new_connections",
+              "toolkit_slug": "leadoku",
+              "action_name": "Get New Connections",
+              "required_inputs": [],
+              "depends_on": []
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "a98c42df-a3d1-4acf-b528-ebae91e5d4d5",
+            "title": "Automatic Sales Lead Management",
+            "description": "Automatically fetches new connections from Growth-X (formerly Leadoku) to manage sales leads.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Automatic Sales Lead Management",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "id": "get_new_connections",
+                  "toolkit_slug": "leadoku",
+                  "action_name": "Get New Connections",
+                  "required_inputs": [],
+                  "depends_on": []
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 1.0,
+            "apps": [
+              "leadoku"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Automatic Sales Lead Management",
+                "description": "Automatically fetches new connections from Growth-X (formerly Leadoku) to manage sales leads.",
+                "triggers": [],
+                "actions": [
+                  {
+                    "id": "get_new_connections",
+                    "toolkit_slug": "leadoku",
+                    "action_name": "Get New Connections",
+                    "required_inputs": [],
+                    "depends_on": []
+                  }
+                ]
+              },
+              "missing_information": [],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_009_PRODUCTIVITY_SLACK_TO_TRELLO",
+      "prompt": "If a message in our #bugs channel in Slack is reacted to with a \ud83d\udc1b emoji, create a new card in the 'Bugs' list on our Trello board.",
+      "latency_ms": 2395,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "5fa2b04c-b48a-4970-8471-b2222c9a04bd",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "slack",
+              "trello"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_010_SINGLE_TOOL_WORKFLOW",
+      "prompt": "Every time I receive an email in Gmail from 'billing@company.com', automatically apply the 'Finances' label to it.",
+      "latency_ms": 2184,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "28441bdd-e113-49af-b039-3f9db7b39067",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "gmail"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_011_VAGUE_PROMPT_WITH_APPS",
+      "prompt": "Handle new customers.",
+      "latency_ms": 2287,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "6416647e-f878-4edc-b5f3-0fb5169c4947",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "stripe",
+              "salesforce"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_012_FAILURE_MISSING_ACTION",
+      "prompt": "Post a message to our #deployments channel in Discord whenever a push is made to the main branch of our GitHub repository.",
+      "latency_ms": 10445,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Missing parameter type', 'Missing parameter type', \"Unknown action 'DISCORD_NEW_MESSAGE_TRIGGER' in toolkit 'discord'\", 'Unknown toolkit: github']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "GitHub Push to Discord Notification",
+          "triggers": [
+            {
+              "id": "github_commit",
+              "type": "event_based",
+              "toolkit_slug": "github",
+              "composio_trigger_slug": "GITHUB_COMMIT_EVENT",
+              "required_inputs": [
+                {
+                  "name": "owner",
+                  "source": "{{inputs.repo_owner}}"
+                },
+                {
+                  "name": "repo",
+                  "source": "{{inputs.repo_name}}"
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "id": "discord_post_message",
+              "toolkit_slug": "discord",
+              "action_name": "DISCORD_NEW_MESSAGE_TRIGGER",
+              "required_inputs": [
+                {
+                  "name": "channel_id",
+                  "source": "{{inputs.discord_channel_id}}"
+                },
+                {
+                  "name": "content",
+                  "source": "\ud83d\ude80 New commit pushed to main by {{trigger.author}}\nMessage: {{trigger.message}}\nURL: {{trigger.url}}"
+                }
+              ],
+              "depends_on": [
+                "github_commit"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "806c7472-9139-4c69-bf98-a5ede1e11be5",
+            "title": "GitHub Push to Discord Notification",
+            "description": "When a commit is pushed to the main branch of a GitHub repository, post a notification to a Discord channel.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "GitHub Push to Discord Notification",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "github_commit",
+                "type": "event_based",
+                "toolkit_slug": "github",
+                "composio_trigger_slug": "GITHUB_COMMIT_EVENT",
+                "required_inputs": [
+                  {
+                    "name": "owner",
+                    "source": "{{inputs.repo_owner}}"
+                  },
+                  {
+                    "name": "repo",
+                    "source": "{{inputs.repo_name}}"
+                  }
+                ]
+              },
+              "actions": [
+                {
+                  "id": "discord_post_message",
+                  "toolkit_slug": "discord",
+                  "action_name": "DISCORD_NEW_MESSAGE_TRIGGER",
+                  "required_inputs": [
+                    {
+                      "name": "channel_id",
+                      "source": "{{inputs.discord_channel_id}}"
+                    },
+                    {
+                      "name": "content",
+                      "source": "\ud83d\ude80 New commit pushed to main by {{trigger.author}}\nMessage: {{trigger.message}}\nURL: {{trigger.url}}"
+                    }
+                  ],
+                  "depends_on": [
+                    "github_commit"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.repo_owner",
+                "prompt": "What is the GitHub username or organization name that owns the repository?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.repo_name",
+                "prompt": "What is the name of the GitHub repository to monitor?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.discord_channel_id",
+                "prompt": "What is the ID of the Discord #deployments channel?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "discord",
+              "github"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "GitHub Push to Discord Notification",
+                "description": "When a commit is pushed to the main branch of a GitHub repository, post a notification to a Discord channel.",
+                "triggers": [
+                  {
+                    "id": "github_commit",
+                    "type": "event_based",
+                    "toolkit_slug": "github",
+                    "composio_trigger_slug": "GITHUB_COMMIT_EVENT",
+                    "required_inputs": [
+                      {
+                        "name": "owner",
+                        "source": "{{inputs.repo_owner}}"
+                      },
+                      {
+                        "name": "repo",
+                        "source": "{{inputs.repo_name}}"
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "discord_post_message",
+                    "toolkit_slug": "discord",
+                    "action_name": "DISCORD_NEW_MESSAGE_TRIGGER",
+                    "required_inputs": [
+                      {
+                        "name": "channel_id",
+                        "source": "{{inputs.discord_channel_id}}"
+                      },
+                      {
+                        "name": "content",
+                        "source": "\ud83d\ude80 New commit pushed to main by {{trigger.author}}\nMessage: {{trigger.message}}\nURL: {{trigger.url}}"
+                      }
+                    ],
+                    "depends_on": [
+                      "github_commit"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.repo_owner",
+                  "prompt": "What is the GitHub username or organization name that owns the repository?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.repo_name",
+                  "prompt": "What is the name of the GitHub repository to monitor?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.discord_channel_id",
+                  "prompt": "What is the ID of the Discord #deployments channel?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_013_SPECIFIC_AND_COMPLEX",
+      "prompt": "When a Google Calendar event named 'Client Onboarding' is about to start, create a new Notion page for meeting notes from a template, and send a Slack DM to the attendees with the Notion page link.",
+      "latency_ms": 12234,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Missing parameter type', 'Missing parameter type', 'Missing parameter type', 'Missing parameter type', \"Unknown action 'Create Notion page' in toolkit 'notion'\", \"Unknown action 'Add multiple content blocks (bulk, user-friendly)' in toolkit 'notion'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Client Onboarding Meeting Notes",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "id": "create_notion_page",
+              "toolkit_slug": "notion",
+              "action_name": "Create Notion page",
+              "required_inputs": [
+                {
+                  "name": "parent_id",
+                  "source": "{{inputs.template_parent_page_id}}"
+                },
+                {
+                  "name": "title",
+                  "source": "Client Onboarding Meeting Notes - {{date}}"
+                }
+              ],
+              "depends_on": []
+            },
+            {
+              "id": "add_page_content",
+              "toolkit_slug": "notion",
+              "action_name": "Add multiple content blocks (bulk, user-friendly)",
+              "required_inputs": [
+                {
+                  "name": "parent_block_id",
+                  "source": "{{create_notion_page.data.id}}"
+                },
+                {
+                  "name": "content_blocks",
+                  "source": [
+                    {
+                      "content_block": {
+                        "content": "Meeting Notes",
+                        "block_property": "heading_1"
+                      }
+                    },
+                    {
+                      "content_block": {
+                        "content": "Date: {{date}}",
+                        "block_property": "paragraph"
+                      }
+                    },
+                    {
+                      "content_block": {
+                        "content": "Attendees:",
+                        "block_property": "heading_2"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "depends_on": [
+                "create_notion_page"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "716a9646-3d5b-44e4-9c3d-a781e4a4061d",
+            "title": "Client Onboarding Meeting Notes",
+            "description": "When a Google Calendar event named 'Client Onboarding' is about to start, create a Notion page for meeting notes and send attendees a Slack DM with the link.",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Client Onboarding Meeting Notes",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "id": "create_notion_page",
+                  "toolkit_slug": "notion",
+                  "action_name": "Create Notion page",
+                  "required_inputs": [
+                    {
+                      "name": "parent_id",
+                      "source": "{{inputs.template_parent_page_id}}"
+                    },
+                    {
+                      "name": "title",
+                      "source": "Client Onboarding Meeting Notes - {{date}}"
+                    }
+                  ],
+                  "depends_on": []
+                },
+                {
+                  "id": "add_page_content",
+                  "toolkit_slug": "notion",
+                  "action_name": "Add multiple content blocks (bulk, user-friendly)",
+                  "required_inputs": [
+                    {
+                      "name": "parent_block_id",
+                      "source": "{{create_notion_page.data.id}}"
+                    },
+                    {
+                      "name": "content_blocks",
+                      "source": [
+                        {
+                          "content_block": {
+                            "content": "Meeting Notes",
+                            "block_property": "heading_1"
+                          }
+                        },
+                        {
+                          "content_block": {
+                            "content": "Date: {{date}}",
+                            "block_property": "paragraph"
+                          }
+                        },
+                        {
+                          "content_block": {
+                            "content": "Attendees:",
+                            "block_property": "heading_2"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "depends_on": [
+                    "create_notion_page"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.template_parent_page_id",
+                "prompt": "What is the Notion page ID where the meeting notes should be created? This should be the parent page or template container.",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.9,
+            "apps": [
+              "notion"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Client Onboarding Meeting Notes",
+                "description": "When a Google Calendar event named 'Client Onboarding' is about to start, create a Notion page for meeting notes and send attendees a Slack DM with the link.",
+                "triggers": [],
+                "actions": [
+                  {
+                    "id": "create_notion_page",
+                    "toolkit_slug": "notion",
+                    "action_name": "Create Notion page",
+                    "required_inputs": [
+                      {
+                        "name": "parent_id",
+                        "source": "{{inputs.template_parent_page_id}}"
+                      },
+                      {
+                        "name": "title",
+                        "source": "Client Onboarding Meeting Notes - {{date}}"
+                      }
+                    ],
+                    "depends_on": []
+                  },
+                  {
+                    "id": "add_page_content",
+                    "toolkit_slug": "notion",
+                    "action_name": "Add multiple content blocks (bulk, user-friendly)",
+                    "required_inputs": [
+                      {
+                        "name": "parent_block_id",
+                        "source": "{{create_notion_page.data.id}}"
+                      },
+                      {
+                        "name": "content_blocks",
+                        "source": [
+                          {
+                            "content_block": {
+                              "content": "Meeting Notes",
+                              "block_property": "heading_1"
+                            }
+                          },
+                          {
+                            "content_block": {
+                              "content": "Date: {{date}}",
+                              "block_property": "paragraph"
+                            }
+                          },
+                          {
+                            "content_block": {
+                              "content": "Attendees:",
+                              "block_property": "heading_2"
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "depends_on": [
+                      "create_notion_page"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.template_parent_page_id",
+                  "prompt": "What is the Notion page ID where the meeting notes should be created? This should be the parent page or template container.",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_014_UNSUPPORTED_GRACEFUL_FAIL",
+      "prompt": "Send me a WhatsApp message every morning with the top story from Hacker News.",
+      "latency_ms": 11669,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Missing parameter type', 'Missing parameter type', 'Missing parameter type', 'Unknown toolkit: hackernews', 'Unknown toolkit: _2chat']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Daily Hacker News Top Story to WhatsApp",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "id": "get_hn_frontpage",
+              "toolkit_slug": "hackernews",
+              "action_name": "Get Hackernews Frontpage",
+              "required_inputs": [
+                {
+                  "name": "min_points",
+                  "source": "40"
+                }
+              ],
+              "depends_on": []
+            },
+            {
+              "id": "create_contact",
+              "toolkit_slug": "_2chat",
+              "action_name": "Create Contact",
+              "required_inputs": [
+                {
+                  "name": "first_name",
+                  "source": "{{inputs.recipient_name}}"
+                },
+                {
+                  "name": "contact_detail",
+                  "source": [
+                    {
+                      "type": "WAPH",
+                      "value": "{{inputs.whatsapp_number}}"
+                    }
+                  ]
+                }
+              ],
+              "depends_on": [
+                "get_hn_frontpage"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "852ea41a-0c4e-4018-b97c-82a9963e3780",
+            "title": "Daily Hacker News Top Story to WhatsApp",
+            "description": "Fetches the top story from Hacker News frontpage and sends it via WhatsApp every morning",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Daily Hacker News Top Story to WhatsApp",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "id": "get_hn_frontpage",
+                  "toolkit_slug": "hackernews",
+                  "action_name": "Get Hackernews Frontpage",
+                  "required_inputs": [
+                    {
+                      "name": "min_points",
+                      "source": "40"
+                    }
+                  ],
+                  "depends_on": []
+                },
+                {
+                  "id": "create_contact",
+                  "toolkit_slug": "_2chat",
+                  "action_name": "Create Contact",
+                  "required_inputs": [
+                    {
+                      "name": "first_name",
+                      "source": "{{inputs.recipient_name}}"
+                    },
+                    {
+                      "name": "contact_detail",
+                      "source": [
+                        {
+                          "type": "WAPH",
+                          "value": "{{inputs.whatsapp_number}}"
+                        }
+                      ]
+                    }
+                  ],
+                  "depends_on": [
+                    "get_hn_frontpage"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.recipient_name",
+                "prompt": "What is the recipient's first name?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.whatsapp_number",
+                "prompt": "What is the recipient's WhatsApp phone number? (in international format, e.g., +1234567890)",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "_2chat",
+              "hackernews"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Daily Hacker News Top Story to WhatsApp",
+                "description": "Fetches the top story from Hacker News frontpage and sends it via WhatsApp every morning",
+                "triggers": [],
+                "actions": [
+                  {
+                    "id": "get_hn_frontpage",
+                    "toolkit_slug": "hackernews",
+                    "action_name": "Get Hackernews Frontpage",
+                    "required_inputs": [
+                      {
+                        "name": "min_points",
+                        "source": "40"
+                      }
+                    ],
+                    "depends_on": []
+                  },
+                  {
+                    "id": "create_contact",
+                    "toolkit_slug": "_2chat",
+                    "action_name": "Create Contact",
+                    "required_inputs": [
+                      {
+                        "name": "first_name",
+                        "source": "{{inputs.recipient_name}}"
+                      },
+                      {
+                        "name": "contact_detail",
+                        "source": [
+                          {
+                            "type": "WAPH",
+                            "value": "{{inputs.whatsapp_number}}"
+                          }
+                        ]
+                      }
+                    ],
+                    "depends_on": [
+                      "get_hn_frontpage"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.recipient_name",
+                  "prompt": "What is the recipient's first name?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.whatsapp_number",
+                  "prompt": "What is the recipient's WhatsApp phone number? (in international format, e.g., +1234567890)",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_015_WEEKLY_SCHEDULE",
+      "prompt": "Every Friday, get the total number of new customers from Stripe this week and post it to the #weekly-summary Slack channel.",
+      "latency_ms": 2348,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "f2bba7a7-831e-472e-af9c-a1cfc9313a1e",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to generate a valid workflow after 3 attempts. Last errors: [\"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\", \"An unexpected error occurred: Failed to call Claude API: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\"]",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "stripe",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      }
+    }
+  ]
+}
+

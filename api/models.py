@@ -34,6 +34,7 @@ class PlanRequest(BaseModel):
     user_id: str
     user_request: Optional[str] = None
     selected_apps: Optional[List[str]] = []
+    num_suggestions: Optional[int] = Field(default=1, ge=1, le=5, description="Number of suggestions to generate (1-5)")
 
 class Suggestion(BaseModel):
     suggestion_id: str

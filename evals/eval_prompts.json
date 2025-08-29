@@ -1,0 +1,167 @@
+[
+    {
+      "id": "CASE_001_GMAIL_TO_SLACK_SIMPLE",
+      "prompt": "When a new email arrives in my Gmail inbox, post the subject to the #general channel in Slack.",
+      "selected_apps": ["gmail", "slack"],
+      "expected": {
+        "apps": ["gmail", "slack"],
+        "trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+        "action_slugs": ["SLACK_SEND_MESSAGE"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_002_STRIPE_MULTI_STEP",
+      "prompt": "When a new customer pays via Stripe, add their name and email to a 'New Customers' Google Sheet, and then post a celebration message in the #sales channel on Slack.",
+      "selected_apps": ["stripe", "googlesheets", "slack"],
+      "expected": {
+        "apps": ["stripe", "googlesheets", "slack"],
+        "trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER",
+        "action_slugs": ["GOOGLESHEETS_CREATE_SPREADSHEET_ROW", "SLACK_SEND_MESSAGE"],
+        "min_steps": 2
+      }
+    },
+    {
+      "id": "CASE_003_SOCIAL_MEDIA_VAGUE",
+      "prompt": "Automate my social media presence by posting my new YouTube videos to my Twitter feed.",
+      "selected_apps": [],
+      "expected": {
+        "apps": ["youtube", "twitter"],
+        "trigger_slug": "YOUTUBE_NEW_ACTIVITY_TRIGGER",
+        "action_slugs": ["TWITTER_CREATION_OF_A_POST"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_004_SCHEDULING_DAILY_REPORT",
+      "prompt": "Send me a daily summary of new high-priority issues from my GitHub repository to my email every morning at 8 AM.",
+      "selected_apps": ["github", "gmail"],
+      "expected": {
+        "apps": ["github", "gmail"],
+        "trigger_slug": "SCHEDULE_BASED",
+        "action_slugs": ["GITHUB_ISSUES_LIST_EVENTS_FOR_REPO", "GMAIL_SEND_EMAIL"],
+        "min_steps": 2
+      }
+    },
+    {
+      "id": "CASE_005_DATA_TRANSFORMATION_AI",
+      "prompt": "When I save a long article to Notion, use AI to summarize it and then add the summary as a comment to the Notion page.",
+      "selected_apps": ["notion", "openai"],
+      "expected": {
+        "apps": ["notion", "openai"],
+        "trigger_slug": "NOTION_PAGE_ADDED_TO_DATABASE",
+        "action_slugs": ["OPENAI_CREATE_THREAD", "NOTION_CREATE_COMMENT"],
+        "min_steps": 2
+      }
+    },
+    {
+      "id": "CASE_006_FILE_HANDLING",
+      "prompt": "When a new PDF is uploaded to my 'Contracts' folder in Google Drive, send a notification to the #legal channel in Slack.",
+      "selected_apps": ["google_drive", "slack"],
+      "expected": {
+        "apps": ["google_drive", "slack"],
+        "trigger_slug": "GOOGLEDRIVE_GOOGLE_DRIVE_CHANGES",
+        "action_slugs": ["SLACK_SEND_MESSAGE"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_007_ECOMMERCE_SHOPIFY",
+      "prompt": "When a new order is placed on Shopify for more than $100, add the customer to my 'VIP Customers' list in Mailchimp.",
+      "selected_apps": ["shopify", "mailchimp"],
+      "expected": {
+        "apps": ["shopify", "mailchimp"],
+        "trigger_slug": "SCHEDULE_BASED",
+        "action_slugs": ["SHOPIFY_GET_CUSTOMER", "MAILCHIMP_ADD_OR_UPDATE_SUBSCRIBER"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_008_CRM_VAGUE_PROMPT",
+      "prompt": "Help me manage my sales leads automatically.",
+      "selected_apps": [],
+      "expected": {
+        "apps": ["salesforce", "gmail"],
+        "trigger_slug": "SALESFORCE_NEW_LEAD_TRIGGER",
+        "action_slugs": ["GMAIL_SEND_EMAIL"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_009_PRODUCTIVITY_SLACK_TO_TRELLO",
+      "prompt": "If a message in our #bugs channel in Slack is reacted to with a 🐛 emoji, create a new card in the 'Bugs' list on our Trello board.",
+      "selected_apps": ["slack", "trello"],
+      "expected": {
+        "apps": ["slack", "trello"],
+        "trigger_slug": "SLACK_REACTION_ADDED",
+        "action_slugs": ["TRELLO_ADD_CARDS"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_010_SINGLE_TOOL_WORKFLOW",
+      "prompt": "Every time I receive an email in Gmail from 'billing@company.com', automatically apply the 'Finances' label to it.",
+      "selected_apps": ["gmail"],
+      "expected": {
+        "apps": ["gmail"],
+        "trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+        "action_slugs": ["GMAIL_ADD_LABEL_TO_EMAIL"],
+        "min_steps": 1
+      }
+    },
+    {
+      "id": "CASE_011_VAGUE_PROMPT_WITH_APPS",
+      "prompt": "Handle new customers.",
+      "selected_apps": ["stripe", "salesforce"],
+      "expected": {
+        "apps": ["stripe", "salesforce"],
+        "trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER",
+        "action_slugs": ["SALESFORCE_CREATE_NEW_CONTACT_WITH_JSON_HEADER"],
+        "min_steps": 1
+      }
+    },
+    {
+        "id": "CASE_012_FAILURE_MISSING_ACTION",
+        "prompt": "Post a message to our #deployments channel in Discord whenever a push is made to the main branch of our GitHub repository.",
+        "selected_apps": ["github", "discord"],
+        "expected": {
+          "apps": ["github", "discord"],
+          "trigger_slug": "GITHUB_PUSH",
+          "action_slugs": [],
+          "min_steps": 0
+        }
+    },
+    {
+      "id": "CASE_013_SPECIFIC_AND_COMPLEX",
+      "prompt": "When a Google Calendar event named 'Client Onboarding' is about to start, create a new Notion page for meeting notes from a template, and send a Slack DM to the attendees with the Notion page link.",
+      "selected_apps": ["google_calendar", "notion", "slack"],
+      "expected": {
+        "apps": ["googlecalendar", "notion", "slack"],
+        "trigger_slug": "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_SYNC_TRIGGER",
+        "action_slugs": ["NOTION_CREATE_NOTION_PAGE", "SLACK_SEND_MESSAGE"],
+        "min_steps": 2
+      }
+    },
+    {
+      "id": "CASE_014_UNSUPPORTED_GRACEFUL_FAIL",
+      "prompt": "Send me a WhatsApp message every morning with the top story from Hacker News.",
+      "selected_apps": [],
+      "expected": {
+        "apps": ["whatsapp"],
+        "trigger_slug": "SCHEDULE_BASED",
+        "action_slugs": ["WHATSAPP_SEND_MESSAGE"],
+        "min_steps": 2
+      }
+    },
+    {
+      "id": "CASE_015_WEEKLY_SCHEDULE",
+      "prompt": "Every Friday, get the total number of new customers from Stripe this week and post it to the #weekly-summary Slack channel.",
+      "selected_apps": ["stripe", "slack"],
+      "expected": {
+        "apps": ["stripe", "slack"],
+        "trigger_slug": "SCHEDULE_BASED",
+        "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_POST_MESSAGE"],
+        "min_steps": 2
+      }
+    }
+  ]

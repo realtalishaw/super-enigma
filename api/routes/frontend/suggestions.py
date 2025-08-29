@@ -155,11 +155,12 @@ async def generate_suggestions(
     database_service = Depends(get_database_service),
     suggestions_service = Depends(get_suggestions_db_service)
 ):
-    """Generate 1 workflow suggestion using DSL generator (validation disabled)"""
+    """Generate multiple workflow suggestions using DSL generator (validation disabled)"""
     logging.info(f"[LINE 152] generate_suggestions called with request: {request}")
     logging.info(f"[LINE 153] Request user_request: '{request.user_request}'")
     logging.info(f"[LINE 154] Request selected_apps: {request.selected_apps}")
     logging.info(f"[LINE 155] Request user_id: {request.user_id}")
+    logging.info(f"[LINE 156] Request num_suggestions: {request.num_suggestions}")
     
     try:
         logging.info(f"[LINE 158] Checking if generator is available...")
@@ -203,180 +204,205 @@ async def generate_suggestions(
             logging.info(f"[LINE 195] GenerationRequest.workflow_type: {generation_request.workflow_type}")
             logging.info(f"[LINE 196] GenerationRequest.complexity: {generation_request.complexity}")
             
-            # Generate single workflow (no variations, no validation)
-            logging.info(f"[LINE 199] Starting workflow generation without validation...")
+            # Generate multiple workflows in parallel
+            num_suggestions = request.num_suggestions or 1
+            logging.info(f"[LINE 199] Starting parallel workflow generation for {num_suggestions} suggestions...")
             start_time = time.time()
-            logging.info(f"[LINE 200] Calling generator.generate_workflow()...")
-            response = await generator.generate_workflow(generation_request)
+            logging.info(f"[LINE 200] Calling generator.generate_multiple_workflows()...")
+            responses = await generator.generate_multiple_workflows(generation_request, num_suggestions)
             generation_time = time.time() - start_time
-            logging.info(f"[LINE 203] generator.generate_workflow() completed in {generation_time:.3f}s")
-            logging.info(f"[LINE 204] Response received: {response}")
-            logging.info(f"[LINE 205] Response.success: {response.success}")
-            logging.info(f"[LINE 206] Response.error_message: {getattr(response, 'error_message', 'N/A')}")
-            logging.info(f"[LINE 207] Response.dsl_template: {getattr(response, 'dsl_template', 'N/A')}")
-            logging.info(f"[LINE 208] Response.confidence: {getattr(response, 'confidence', 'N/A')}")
+            logging.info(f"[LINE 203] generator.generate_multiple_workflows() completed in {generation_time:.3f}s")
+            logging.info(f"[LINE 204] Generated {len(responses)} responses")
             
-            if not response.success:
-                logging.error(f"[LINE 209] Workflow generation failed: {response.error_message}")
-                raise Exception(f"Workflow generation failed: {response.error_message}")
-            
-            logging.info(f"[LINE 212] Workflow generation successful, processing response...")
-            
-            # Convert GenerationResponse to Suggestion
-            if response.dsl_template:
-                logging.info(f"[LINE 215] Processing dsl_template...")
-                # Extract workflow information from the DSL template
-                workflow = response.dsl_template.get("workflow", {})
-                toolkit = response.dsl_template.get("toolkit", {})
-                logging.info(f"[LINE 218] Extracted workflow: {workflow}")
-                logging.info(f"[LINE 219] Extracted toolkit: {toolkit}")
+            # Process all responses and create suggestions
+            suggestions = []
+            for i, response in enumerate(responses):
+                logging.info(f"[LINE 207] Processing response {i+1}: success={response.success}, error={getattr(response, 'error_message', 'N/A')}")
                 
-                # Get workflow name and description (prefer AI-written description from DSL)
-                workflow_name = workflow.get("name", "generated_workflow")
-                workflow_description = workflow.get("description") or response.reasoning or f"Automated workflow for: {request.user_request}"
-                logging.info(f"[LINE 223] Workflow name: {workflow_name}")
-                logging.info(f"[LINE 224] Workflow description: {workflow_description}")
-                
-                # Extract triggers and actions
-                triggers = workflow.get("triggers", [])
-                actions = workflow.get("actions", [])
-                logging.info(f"[LINE 227] Extracted triggers: {triggers}")
-                logging.info(f"[LINE 228] Extracted actions: {actions}")
-                
-                # Create DSL parametric structure
-                dsl_parametric = DSLParametric(
-                    version=1,
-                    name=workflow_name,
-                    connections=response.dsl_template.get("connections", {}),
-                    trigger=triggers[0] if triggers else {"type": "manual"},
-                    actions=actions if actions else [{"type": "notification"}]
-                )
-                logging.info(f"[LINE 235] Created DSLParametric: {dsl_parametric}")
-            else:
-                logging.warning(f"[LINE 237] No dsl_template found, using fallback...")
-                # Fallback if no DSL template
-                workflow_name = "generated_workflow"
-                workflow_description = response.reasoning or f"Automated workflow for: {request.user_request}"
-                dsl_parametric = DSLParametric(
-                    version=1,
-                    name=workflow_name,
-                    connections={},
-                    trigger={"type": "manual"},
-                    actions=[{"type": "notification"}]
-                )
-                logging.info(f"[LINE 246] Created fallback DSLParametric: {dsl_parametric}")
-            
-            # Convert DSL generator MissingField objects to API MissingField format
-            api_missing_fields = []
-            if response.missing_fields:
-                logging.info(f"[LINE 250] Processing missing_fields: {response.missing_fields}")
-                for missing_field in response.missing_fields:
-                    api_missing_field = {
-                        "path": missing_field.field,
-                        "prompt": missing_field.prompt,
-                        "type_hint": missing_field.type
-                    }
-                    api_missing_fields.append(api_missing_field)
-                    logging.info(f"[LINE 256] Converted missing field: {api_missing_field}")
-            else:
-                logging.info(f"[LINE 258] No missing fields found")
-            
-            logging.info(f"[LINE 260] Getting integration names...")
-            # Get integration names for better display
-            integration_names = await get_integration_names(
-                response.suggested_apps or request.selected_apps or [], 
-                database_service
-            )
-            logging.info(f"[LINE 264] Integration names: {integration_names}")
-            
-            # Use integration names instead of IDs for display
-            display_apps = [
-                integration_names.get(app_id, app_id) 
-                for app_id in (response.suggested_apps or request.selected_apps or [])
-            ]
-            logging.info(f"[LINE 269] Display apps: {display_apps}")
-            
-            # Generate unique suggestion ID
-            suggestion_id = str(uuid.uuid4())
-            logging.info(f"[LINE 272] Generated suggestion ID: {suggestion_id}")
-            
-            # Create generation metadata for benchmarking
-            generation_metadata = {
-                "generation_time_seconds": round(generation_time, 3),
-                "model_version": getattr(response, 'model_version', 'unknown'),
-                "prompt_tokens": getattr(response, 'prompt_tokens', 0),
-                "completion_tokens": getattr(response, 'completion_tokens', 0),
-                "total_tokens": getattr(response, 'total_tokens', 0),
-                "generation_timestamp": time.time(),
-                "dsl_generator_version": "1.0.0"  # You can make this dynamic
-            }
-            logging.info(f"[LINE 283] Created generation metadata: {generation_metadata}")
-            
-            suggestion = Suggestion(
-                suggestion_id=suggestion_id,
-                title=workflow_name,
-                description=workflow_description,
-                dsl_parametric=dsl_parametric,
-                missing_fields=api_missing_fields,
-                confidence=response.confidence,
-                apps=display_apps,
-                source="generator",
-                # Store the full workflow JSON for preview
-                full_workflow_json=response.dsl_template or response.workflow_json or {}
-            )
-            logging.info(f"[LINE 295] Created Suggestion object: {suggestion}")
-            
-            # Save suggestion to database if service is available
-            if suggestions_service:
-                logging.info(f"[LINE 298] Suggestions service available, saving to database...")
-                try:
-                    save_success = await suggestions_service.save_suggestion(
-                        user_id=request.user_id,
-                        user_request=request.user_request or "",
-                        selected_apps=request.selected_apps or [],
-                        suggestion_id=suggestion_id,
-                        title=workflow_name,
-                        description=workflow_description,
-                        dsl_parametric=dsl_parametric.dict(),
-                        missing_fields=api_missing_fields,
-                        confidence=response.confidence,
-                        apps=display_apps,
+                if not response.success:
+                    logging.warning(f"[LINE 209] Response {i+1} failed: {response.error_message}")
+                    # Create a fallback suggestion for failed generations
+                    fallback_suggestion = Suggestion(
+                        suggestion_id=str(uuid.uuid4()),
+                        title=f"Failed Generation {i+1}",
+                        description=f"Workflow generation failed: {response.error_message}",
+                        dsl_parametric=DSLParametric(
+                            version=1,
+                            name=f"failed_workflow_{i+1}",
+                            connections={},
+                            trigger={"type": "manual"},
+                            actions=[{"type": "notification"}]
+                        ),
+                        missing_fields=[],
+                        confidence=0.0,
+                        apps=request.selected_apps or [],
                         source="generator",
-                        full_workflow_json=response.dsl_template or response.workflow_json or {},
-                        generation_metadata=generation_metadata
+                        full_workflow_json={}
                     )
+                    suggestions.append(fallback_suggestion)
+                    continue
+                
+                logging.info(f"[LINE 225] Response {i+1} successful, processing dsl_template...")
+                
+                # Convert GenerationResponse to Suggestion
+                if response.dsl_template:
+                    logging.info(f"[LINE 228] Processing dsl_template for response {i+1}...")
+                    # Extract workflow information from the DSL template
+                    workflow = response.dsl_template.get("workflow", {})
+                    toolkit = response.dsl_template.get("toolkit", {})
+                    logging.info(f"[LINE 231] Extracted workflow: {workflow}")
+                    logging.info(f"[LINE 232] Extracted toolkit: {toolkit}")
                     
-                    if save_success:
-                        logging.info(f"[LINE 315] Successfully saved suggestion {suggestion_id} to database")
-                    else:
-                        logging.warning(f"[LINE 317] Failed to save suggestion {suggestion_id} to database")
+                    # Get workflow name and description (prefer AI-written description from DSL)
+                    workflow_name = workflow.get("name", f"generated_workflow_{i+1}")
+                    workflow_description = workflow.get("description") or response.reasoning or f"Automated workflow for: {request.user_request}"
+                    logging.info(f"[LINE 236] Workflow name: {workflow_name}")
+                    logging.info(f"[LINE 237] Workflow description: {workflow_description}")
+                    
+                    # Extract triggers and actions
+                    triggers = workflow.get("triggers", [])
+                    actions = workflow.get("actions", [])
+                    logging.info(f"[LINE 240] Extracted triggers: {triggers}")
+                    logging.info(f"[LINE 241] Extracted actions: {actions}")
+                    
+                    # Create DSL parametric structure
+                    dsl_parametric = DSLParametric(
+                        version=1,
+                        name=workflow_name,
+                        connections=response.dsl_template.get("connections", {}),
+                        trigger=triggers[0] if triggers else {"type": "manual"},
+                        actions=actions if actions else [{"type": "notification"}]
+                    )
+                    logging.info(f"[LINE 248] Created DSLParametric for response {i+1}: {dsl_parametric}")
+                else:
+                    logging.warning(f"[LINE 250] No dsl_template found for response {i+1}, using fallback...")
+                    # Fallback if no DSL template
+                    workflow_name = f"generated_workflow_{i+1}"
+                    workflow_description = response.reasoning or f"Automated workflow for: {request.user_request}"
+                    dsl_parametric = DSLParametric(
+                        version=1,
+                        name=workflow_name,
+                        connections={},
+                        trigger={"type": "manual"},
+                        actions=[{"type": "notification"}]
+                    )
+                    logging.info(f"[LINE 259] Created fallback DSLParametric for response {i+1}: {dsl_parametric}")
+                
+                # Convert DSL generator MissingField objects to API MissingField format
+                api_missing_fields = []
+                if response.missing_fields:
+                    logging.info(f"[LINE 263] Processing missing_fields for response {i+1}: {response.missing_fields}")
+                    for missing_field in response.missing_fields:
+                        api_missing_field = {
+                            "path": missing_field.field,
+                            "prompt": missing_field.prompt,
+                            "type_hint": missing_field.type
+                        }
+                        api_missing_fields.append(api_missing_field)
+                        logging.info(f"[LINE 269] Converted missing field: {api_missing_field}")
+                else:
+                    logging.info(f"[LINE 271] No missing fields found for response {i+1}")
+                
+                logging.info(f"[LINE 273] Getting integration names for response {i+1}...")
+                # Get integration names for better display
+                integration_names = await get_integration_names(
+                    response.suggested_apps or request.selected_apps or [], 
+                    database_service
+                )
+                logging.info(f"[LINE 277] Integration names for response {i+1}: {integration_names}")
+                
+                # Use integration names instead of IDs for display
+                display_apps = [
+                    integration_names.get(app_id, app_id) 
+                    for app_id in (response.suggested_apps or request.selected_apps or [])
+                ]
+                logging.info(f"[LINE 282] Display apps for response {i+1}: {display_apps}")
+                
+                # Generate unique suggestion ID
+                suggestion_id = str(uuid.uuid4())
+                logging.info(f"[LINE 285] Generated suggestion ID for response {i+1}: {suggestion_id}")
+                
+                # Create generation metadata for benchmarking
+                generation_metadata = {
+                    "generation_time_seconds": round(generation_time, 3),
+                    "model_version": getattr(response, 'model_version', 'unknown'),
+                    "prompt_tokens": getattr(response, 'prompt_tokens', 0),
+                    "completion_tokens": getattr(response, 'completion_tokens', 0),
+                    "total_tokens": getattr(response, 'total_tokens', 0),
+                    "generation_timestamp": time.time(),
+                    "dsl_generator_version": "1.0.0",  # You can make this dynamic
+                    "suggestion_number": i + 1,
+                    "total_suggestions": num_suggestions
+                }
+                logging.info(f"[LINE 297] Created generation metadata for response {i+1}: {generation_metadata}")
+                
+                suggestion = Suggestion(
+                    suggestion_id=suggestion_id,
+                    title=workflow_name,
+                    description=workflow_description,
+                    dsl_parametric=dsl_parametric,
+                    missing_fields=api_missing_fields,
+                    confidence=response.confidence,
+                    apps=display_apps,
+                    source="generator",
+                    # Store the full workflow JSON for preview
+                    full_workflow_json=response.dsl_template or response.workflow_json or {}
+                )
+                logging.info(f"[LINE 309] Created Suggestion object for response {i+1}: {suggestion}")
+                
+                # Save suggestion to database if service is available
+                if suggestions_service:
+                    logging.info(f"[LINE 312] Suggestions service available, saving response {i+1} to database...")
+                    try:
+                        save_success = await suggestions_service.save_suggestion(
+                            user_id=request.user_id,
+                            user_request=request.user_request or "",
+                            selected_apps=request.selected_apps or [],
+                            suggestion_id=suggestion_id,
+                            title=workflow_name,
+                            description=workflow_description,
+                            dsl_parametric=dsl_parametric.dict(),
+                            missing_fields=api_missing_fields,
+                            confidence=response.confidence,
+                            apps=display_apps,
+                            source="generator",
+                            full_workflow_json=response.dsl_template or response.workflow_json or {},
+                            generation_metadata=generation_metadata
+                        )
                         
-                except Exception as e:
-                    logging.error(f"[LINE 320] Error saving suggestion to database: {e}")
-                    # Don't fail the request if saving fails
-            else:
-                logging.warning(f"[LINE 323] Suggestions service not available - suggestion not saved to database")
+                        if save_success:
+                            logging.info(f"[LINE 329] Successfully saved suggestion {suggestion_id} to database")
+                        else:
+                            logging.warning(f"[LINE 331] Failed to save suggestion {suggestion_id} to database")
+                            
+                    except Exception as e:
+                        logging.error(f"[LINE 334] Error saving suggestion {i+1} to database: {e}")
+                        # Don't fail the request if saving fails
+                else:
+                    logging.warning(f"[LINE 337] Suggestions service not available - suggestion {i+1} not saved to database")
+                
+                suggestions.append(suggestion)
             
-            logging.info(f"[LINE 325] Returning PlanResponse with suggestion...")
-            # Return single suggestion instead of multiple
-            return PlanResponse(suggestions=[suggestion])
+            logging.info(f"[LINE 340] Returning PlanResponse with {len(suggestions)} suggestions...")
+            # Return all generated suggestions
+            return PlanResponse(suggestions=suggestions)
             
         except Exception as e:
-            logging.error(f"[LINE 329] DSL generator failed: {e}")
-            logging.error(f"[LINE 330] Exception type: {type(e).__name__}")
-            logging.error(f"[LINE 331] Exception details: {str(e)}")
+            logging.error(f"[LINE 343] DSL generator failed: {e}")
+            logging.error(f"[LINE 344] Exception type: {type(e).__name__}")
+            logging.error(f"[LINE 345] Exception details: {str(e)}")
             raise HTTPException(
                 status_code=500, 
                 detail=f"Failed to generate workflow suggestions: {str(e)}"
             )
         
     except HTTPException:
-        logging.error(f"[LINE 338] Re-raising HTTPException")
+        logging.error(f"[LINE 352] Re-raising HTTPException")
         raise
     except Exception as e:
-        logging.error(f"[LINE 340] Unexpected error in suggestions generation: {e}")
-        logging.error(f"[LINE 341] Exception type: {type(e).__name__}")
-        logging.error(f"[LINE 342] Exception details: {str(e)}")
+        logging.error(f"[LINE 354] Unexpected error in suggestions generation: {e}")
+        logging.error(f"[LINE 355] Exception type: {type(e).__name__}")
+        logging.error(f"[LINE 356] Exception details: {str(e)}")
         raise HTTPException(
             status_code=500, 
             detail=f"Unexpected error: {str(e)}"

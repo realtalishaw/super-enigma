@@ -2,141 +2,97 @@
 System routes for health checks and system status.
 """
 
-from fastapi import APIRouter, Depends
-from api.cache_service import get_global_cache_service
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Dict, Any
+import logging
 
-router = APIRouter(prefix="", tags=["System"])
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/system", tags=["system"])
 
 
 @router.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint"""
-    return {"status": "healthy", "timestamp": "2024-01-15T10:00:00Z"}
-
-
-@router.get("/health/cache")
-async def cache_health_check(cache_service = Depends(get_global_cache_service)):
-    """Cache health check endpoint"""
-    if not cache_service:
-        return {
-            "status": "error",
-            "message": "Cache service not available",
-            "timestamp": "2024-01-15T10:00:00Z"
-        }
-    
-    cache_status = cache_service.get_cache_status()
-    health_status = cache_service.get_health_status()
-    
     return {
-        "status": "success",
-        "cache": cache_status,
-        "health": health_status,
-        "timestamp": "2024-01-15T10:00:00Z"
+        "status": "healthy",
+        "timestamp": "2025-01-28T00:00:00Z",
+        "version": "1.0.0"
     }
 
 
-@router.get("/cache/status")
-async def cache_status(cache_service = Depends(get_global_cache_service)):
-    """Get detailed cache status"""
-    if not cache_service:
-        return {
-            "status": "error",
-            "message": "Cache service not available"
-        }
-    
-    return {
-        "status": "success",
-        "cache": cache_service.get_cache_status(),
-        "health": cache_service.get_health_status()
-    }
-
-
-@router.post("/cache/refresh")
-async def refresh_cache(cache_service = Depends(get_global_cache_service)):
-    """Refresh the catalog cache"""
-    if not cache_service:
-        return {
-            "status": "error",
-            "message": "Cache service not available"
-        }
-    
+@router.get("/rate-limiting/status")
+async def get_rate_limiting_status() -> Dict[str, Any]:
+    """Get current rate limiting status for Claude API calls"""
     try:
-        await cache_service.refresh_cache(force=True)
-        return {
-            "status": "success",
-            "message": "Cache refreshed successfully"
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Failed to refresh cache: {e}"
-        }
-
-
-@router.get("/cache/info")
-async def cache_info(cache_service = Depends(get_global_cache_service)):
-    """Get information about what's in the cache"""
-    if not cache_service:
-        return {
-            "status": "error",
-            "message": "Cache service not available"
-        }
-    
-    try:
-        catalog_cache = cache_service.get_catalog_cache()
+        # Import here to avoid circular imports
+        from services.dsl_generator.rate_limiter import get_global_rate_limiter
         
-        if not catalog_cache:
-            return {
-                "status": "success",
-                "message": "Cache is empty",
-                "data": {}
-            }
-        
-        # Get sample providers
-        sample_providers = list(catalog_cache.keys())[:10]
-        sample_data = {}
-        
-        for provider_key in sample_providers:
-            provider = catalog_cache[provider_key]
-            sample_data[provider_key] = {
-                "name": provider.get('name', provider_key),
-                "category": provider.get('category', 'Unknown'),
-                "triggers_count": len(provider.get('triggers', [])),
-                "actions_count": len(provider.get('actions', [])),
-                "sample_triggers": [t.get('name', 'Unknown') for t in provider.get('triggers', [])[:3]],
-                "sample_actions": [a.get('name', 'Unknown') for a in provider.get('actions', [])[:3]]
-            }
+        rate_limiter = get_global_rate_limiter()
+        stats = rate_limiter.get_stats()
         
         return {
             "status": "success",
-            "total_providers": len(catalog_cache),
-            "sample_providers": sample_data,
-            "cache_timestamp": cache_service.get_cache_status().get('cache_age_seconds', 0)
+            "rate_limiting": stats,
+            "timestamp": "2025-01-28T00:00:00Z"
         }
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Failed to get cache info: {e}"
-        }
+        logger.error(f"Failed to get rate limiting status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get rate limiting status: {str(e)}")
 
 
-@router.get("/cache/statistics")
-async def cache_statistics(cache_service = Depends(get_global_cache_service)):
-    """Get detailed catalog statistics"""
-    if not cache_service:
-        return {
-            "status": "error",
-            "message": "Cache service not available"
-        }
-    
+@router.post("/rate-limiting/configure")
+async def configure_rate_limiting(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Configure rate limiting parameters"""
     try:
-        stats = cache_service.get_catalog_statistics()
+        from services.dsl_generator.rate_limiter import set_global_rate_limiter_config, RateLimitConfig
+        
+        # Extract configuration parameters
+        rate_limit_config = RateLimitConfig(
+            requests_per_minute=config.get("requests_per_minute", 20),
+            burst_limit=config.get("burst_limit", 5),
+            base_delay=config.get("base_delay", 2.0),
+            max_delay=config.get("max_delay", 30.0),
+            jitter_factor=config.get("jitter_factor", 0.25)
+        )
+        
+        set_global_rate_limiter_config(rate_limit_config)
+        
         return {
             "status": "success",
-            "statistics": stats
+            "message": "Rate limiting configuration updated",
+            "config": {
+                "requests_per_minute": rate_limit_config.requests_per_minute,
+                "burst_limit": rate_limit_config.burst_limit,
+                "base_delay": rate_limit_config.base_delay,
+                "max_delay": rate_limit_config.max_delay,
+                "jitter_factor": rate_limit_config.jitter_factor
+            },
+            "timestamp": "2025-01-28T00:00:00Z"
         }
     except Exception as e:
+        logger.error(f"Failed to configure rate limiting: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to configure rate limiting: {str(e)}")
+
+
+@router.get("/ai-client/status")
+async def get_ai_client_status() -> Dict[str, Any]:
+    """Get AI client status and configuration"""
+    try:
+        from services.dsl_generator.ai_client import AIClient
+        
+        # Create a temporary client to get status
+        client = AIClient()
+        model_info = client.get_model_info()
+        rate_stats = client.get_rate_limiting_stats()
+        
         return {
-            "status": "error",
-            "message": f"Failed to get cache statistics: {e}"
+            "status": "success",
+            "ai_client": {
+                "model_info": model_info,
+                "rate_limiting_stats": rate_stats
+            },
+            "timestamp": "2025-01-28T00:00:00Z"
         }
+    except Exception as e:
+        logger.error(f"Failed to get AI client status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get AI client status: {str(e)}")
