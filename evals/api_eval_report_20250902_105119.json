@@ -1,0 +1,920 @@
+{
+  "run_timestamp": "2025-09-02T10:51:19.715317",
+  "api_endpoint": "http://localhost:8001/api/suggestions:generate",
+  "summary": {
+    "total_cases": 15,
+    "pass_rate_percent": 100.0,
+    "average_latency_ms": 16,
+    "average_accuracy_on_pass": 0.22,
+    "llm_data_coverage_percent": 0.0
+  },
+  "results": [
+    {
+      "case_id": "CASE_001_GMAIL_TO_SLACK_SIMPLE",
+      "prompt": "When a new email arrives in my Gmail inbox, post the subject to the #general channel in Slack.",
+      "latency_ms": 16,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "7540adf3-f9c9-4dad-887e-6bc7c073a52c",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "gmail",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_002_STRIPE_MULTI_STEP",
+      "prompt": "When a new customer pays via Stripe, add their name and email to a 'New Customers' Google Sheet, and then post a celebration message in the #sales channel on Slack.",
+      "latency_ms": 14,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "599f41e2-0c9d-43f4-be8e-3af22863f597",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "stripe",
+              "googlesheets",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_003_SOCIAL_MEDIA_VAGUE",
+      "prompt": "Automate my social media presence by posting my new YouTube videos to my Twitter feed.",
+      "latency_ms": 16,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "c43e6df9-70bf-454d-b358-73652661e94e",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_004_SCHEDULING_DAILY_REPORT",
+      "prompt": "Send me a daily summary of new high-priority issues from my GitHub repository to my email every morning at 8 AM.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "bb47060e-f1ef-43c1-bba9-f0fccd64b16b",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "github",
+              "gmail"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_005_DATA_TRANSFORMATION_AI",
+      "prompt": "When I save a long article to Notion, use AI to summarize it and then add the summary as a comment to the Notion page.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "0eca239b-2420-41d9-b83a-b538dc8390f9",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "notion",
+              "openai"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_006_FILE_HANDLING",
+      "prompt": "When a new PDF is uploaded to my 'Contracts' folder in Google Drive, send a notification to the #legal channel in Slack.",
+      "latency_ms": 16,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "631194a5-dc05-49b0-a47d-f9ef0f206723",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "google_drive",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_007_ECOMMERCE_SHOPIFY",
+      "prompt": "When a new order is placed on Shopify for more than $100, add the customer to my 'VIP Customers' list in Mailchimp.",
+      "latency_ms": 18,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "36c16a8d-4b5c-4672-bcb2-e8292f3ca503",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "shopify",
+              "mailchimp"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_008_CRM_VAGUE_PROMPT",
+      "prompt": "Help me manage my sales leads automatically.",
+      "latency_ms": 16,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "2f33ab41-e871-4205-9c7b-37ec0a9b0a7a",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_009_PRODUCTIVITY_SLACK_TO_TRELLO",
+      "prompt": "If a message in our #bugs channel in Slack is reacted to with a \ud83d\udc1b emoji, create a new card in the 'Bugs' list on our Trello board.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "53474428-87c5-4a38-92e2-fc2dd01d77d8",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "slack",
+              "trello"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_010_SINGLE_TOOL_WORKFLOW",
+      "prompt": "Every time I receive an email in Gmail from 'billing@company.com', automatically apply the 'Finances' label to it.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "3639c892-0fa7-4e75-ad90-8af18126ae1c",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "gmail"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_011_VAGUE_PROMPT_WITH_APPS",
+      "prompt": "Handle new customers.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.33,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "e3f1a82a-4950-428e-9d27-511832afb58c",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "stripe",
+              "salesforce"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_012_FAILURE_MISSING_ACTION",
+      "prompt": "Post a message to our #deployments channel in Discord whenever a push is made to the main branch of our GitHub repository.",
+      "latency_ms": 18,
+      "is_valid_schema": true,
+      "accuracy_score": 0.67,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "d102c756-8d76-45f6-bd28-76a2f66ed9e3",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "github",
+              "discord"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_013_SPECIFIC_AND_COMPLEX",
+      "prompt": "When a Google Calendar event named 'Client Onboarding' is about to start, create a new Notion page for meeting notes from a template, and send a Slack DM to the attendees with the Notion page link.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "e742ad07-8d9e-44a5-b54d-caf7bfd5502a",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "google_calendar",
+              "notion",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_014_UNSUPPORTED_GRACEFUL_FAIL",
+      "prompt": "Send me a WhatsApp message every morning with the top story from Hacker News.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "83b2aff8-0277-464e-90db-f63be07a9fc7",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    },
+    {
+      "case_id": "CASE_015_WEEKLY_SCHEDULE",
+      "prompt": "Every Friday, get the total number of new customers from Stripe this week and post it to the #weekly-summary Slack channel.",
+      "latency_ms": 15,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 1,
+      "error_message": null,
+      "generated_dsl": {
+        "workflow": {
+          "name": "failed_workflow_1",
+          "triggers": [
+            {
+              "type": "manual"
+            }
+          ],
+          "actions": [
+            {
+              "type": "notification"
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "95463dbd-7ec8-4288-a7ec-ea311c022eb9",
+            "title": "Failed Generation 1",
+            "description": "Workflow generation failed: Failed to retrieve relevant tools from catalog",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "failed_workflow_1",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "type": "manual"
+              },
+              "actions": [
+                {
+                  "type": "notification"
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 0.0,
+            "apps": [
+              "stripe",
+              "slack"
+            ],
+            "source": "generator",
+            "full_workflow_json": {}
+          }
+        ]
+      },
+      "llm_inputs": null,
+      "llm_outputs": null,
+      "groq_api_calls": null,
+      "claude_api_calls": null
+    }
+  ]
+}

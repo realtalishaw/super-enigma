@@ -208,10 +208,13 @@ async def run_evaluation():
     print("\n--- ✅ EVALUATION COMPLETE ---")
     print(json.dumps(report["summary"], indent=2))
     
+    # Save report in the evals folder
+    evals_dir = Path(__file__).parent
     report_filename = f"eval_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    with open(report_filename, "w") as f:
+    report_path = evals_dir / report_filename
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
-    print(f"\nDetailed report saved to: {report_filename}")
+    print(f"\nDetailed report saved to: {report_path}")
 
 
 if __name__ == "__main__":

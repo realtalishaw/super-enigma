@@ -1,0 +1,1351 @@
+{
+  "run_timestamp": "2025-08-29T11:56:50.428246",
+  "api_endpoint": "http://localhost:8001/api/suggestions:generate",
+  "summary": {
+    "total_cases": 15,
+    "pass_rate_percent": 60.0,
+    "average_latency_ms": 14891,
+    "average_accuracy_on_pass": 0.07
+  },
+  "results": [
+    {
+      "case_id": "CASE_001_GMAIL_TO_SLACK_SIMPLE",
+      "prompt": "When a new email arrives in my Gmail inbox, post the subject to the #general channel in Slack.",
+      "latency_ms": 18755,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_002_STRIPE_MULTI_STEP",
+      "prompt": "When a new customer pays via Stripe, add their name and email to a 'New Customers' Google Sheet, and then post a celebration message in the #sales channel on Slack.",
+      "latency_ms": 12838,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_003_SOCIAL_MEDIA_VAGUE",
+      "prompt": "Automate my social media presence by posting my new YouTube videos to my Twitter feed.",
+      "latency_ms": 1341,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_004_SCHEDULING_DAILY_REPORT",
+      "prompt": "Send me a daily summary of new high-priority issues from my GitHub repository to my email every morning at 8 AM.",
+      "latency_ms": 27165,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: ['Unknown toolkit: github', 'Unknown toolkit: github']",
+      "generated_dsl": {
+        "workflow": {
+          "name": "GitHub High Priority Issues Daily Summary",
+          "triggers": [
+            {
+              "id": "new_issue_trigger",
+              "type": "event_based",
+              "toolkit_slug": "github",
+              "composio_trigger_slug": "GITHUB_ISSUE_ADDED_EVENT"
+            }
+          ],
+          "actions": [
+            {
+              "id": "process_issue",
+              "toolkit_slug": "github",
+              "action_name": "GITHUB_ADD_LABELS_TO_AN_ISSUE",
+              "required_inputs": [
+                {
+                  "name": "repository",
+                  "source": "{{inputs.repository}}",
+                  "type": "string"
+                },
+                {
+                  "name": "issue_number",
+                  "source": "{{trigger.issue_number}}",
+                  "type": "number"
+                },
+                {
+                  "name": "priority_label",
+                  "source": "{{inputs.priority_label}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "new_issue_trigger"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "d79933f5-a367-4655-b385-3641ff0cb683",
+            "title": "GitHub High Priority Issues Daily Summary",
+            "description": "Monitors new high-priority issues in a GitHub repository",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "GitHub High Priority Issues Daily Summary",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "new_issue_trigger",
+                "type": "event_based",
+                "toolkit_slug": "github",
+                "composio_trigger_slug": "GITHUB_ISSUE_ADDED_EVENT"
+              },
+              "actions": [
+                {
+                  "id": "process_issue",
+                  "toolkit_slug": "github",
+                  "action_name": "GITHUB_ADD_LABELS_TO_AN_ISSUE",
+                  "required_inputs": [
+                    {
+                      "name": "repository",
+                      "source": "{{inputs.repository}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "issue_number",
+                      "source": "{{trigger.issue_number}}",
+                      "type": "number"
+                    },
+                    {
+                      "name": "priority_label",
+                      "source": "{{inputs.priority_label}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "new_issue_trigger"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.repository",
+                "prompt": "What is the GitHub repository name (format: owner/repo)?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.priority_label",
+                "prompt": "What label should be used to mark high-priority issues?",
+                "type_hint": "string"
+              },
+              {
+                "path": "email_configuration",
+                "prompt": "Email functionality is not available in the current toolkit. Please provide alternative notification preferences.",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "github"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "GitHub High Priority Issues Daily Summary",
+                "description": "Monitors new high-priority issues in a GitHub repository",
+                "triggers": [
+                  {
+                    "id": "new_issue_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "github",
+                    "composio_trigger_slug": "GITHUB_ISSUE_ADDED_EVENT"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "process_issue",
+                    "toolkit_slug": "github",
+                    "action_name": "GITHUB_ADD_LABELS_TO_AN_ISSUE",
+                    "required_inputs": [
+                      {
+                        "name": "repository",
+                        "source": "{{inputs.repository}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "issue_number",
+                        "source": "{{trigger.issue_number}}",
+                        "type": "number"
+                      },
+                      {
+                        "name": "priority_label",
+                        "source": "{{inputs.priority_label}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "new_issue_trigger"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.repository",
+                  "prompt": "What is the GitHub repository name (format: owner/repo)?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.priority_label",
+                  "prompt": "What label should be used to mark high-priority issues?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "email_configuration",
+                  "prompt": "Email functionality is not available in the current toolkit. Please provide alternative notification preferences.",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_005_DATA_TRANSFORMATION_AI",
+      "prompt": "When I save a long article to Notion, use AI to summarize it and then add the summary as a comment to the Notion page.",
+      "latency_ms": 14398,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'NOTION_FETCH_BLOCK_CONTENTS' in toolkit 'notion'\", \"Unknown action 'NOTION_CREATE_COMMENT' in toolkit 'notion'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Notion Article Summarizer",
+          "triggers": [
+            {
+              "id": "new_page_trigger",
+              "type": "event_based",
+              "toolkit_slug": "notion",
+              "composio_trigger_slug": "NOTION_ALL_PAGE_EVENTS_TRIGGER"
+            }
+          ],
+          "actions": [
+            {
+              "id": "fetch_content",
+              "toolkit_slug": "notion",
+              "action_name": "NOTION_FETCH_BLOCK_CONTENTS",
+              "required_inputs": [
+                {
+                  "name": "block_id",
+                  "source": "{{trigger.page_id}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "new_page_trigger"
+              ]
+            },
+            {
+              "id": "add_summary_comment",
+              "toolkit_slug": "notion",
+              "action_name": "NOTION_CREATE_COMMENT",
+              "required_inputs": [
+                {
+                  "name": "parent_page_id",
+                  "source": "{{trigger.page_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "comment_text",
+                  "source": "{{inputs.ai_summary}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "fetch_content"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "3dad481e-5172-46e1-b00b-8a03e3dddf54",
+            "title": "Notion Article Summarizer",
+            "description": "Automatically summarizes articles saved to Notion and adds the summary as a comment",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Notion Article Summarizer",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "new_page_trigger",
+                "type": "event_based",
+                "toolkit_slug": "notion",
+                "composio_trigger_slug": "NOTION_ALL_PAGE_EVENTS_TRIGGER"
+              },
+              "actions": [
+                {
+                  "id": "fetch_content",
+                  "toolkit_slug": "notion",
+                  "action_name": "NOTION_FETCH_BLOCK_CONTENTS",
+                  "required_inputs": [
+                    {
+                      "name": "block_id",
+                      "source": "{{trigger.page_id}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "new_page_trigger"
+                  ]
+                },
+                {
+                  "id": "add_summary_comment",
+                  "toolkit_slug": "notion",
+                  "action_name": "NOTION_CREATE_COMMENT",
+                  "required_inputs": [
+                    {
+                      "name": "parent_page_id",
+                      "source": "{{trigger.page_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "comment_text",
+                      "source": "{{inputs.ai_summary}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "fetch_content"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.ai_summary",
+                "prompt": "AI-generated summary of the article content",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 1.0,
+            "apps": [
+              "notion"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Notion Article Summarizer",
+                "description": "Automatically summarizes articles saved to Notion and adds the summary as a comment",
+                "triggers": [
+                  {
+                    "id": "new_page_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "notion",
+                    "composio_trigger_slug": "NOTION_ALL_PAGE_EVENTS_TRIGGER"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "fetch_content",
+                    "toolkit_slug": "notion",
+                    "action_name": "NOTION_FETCH_BLOCK_CONTENTS",
+                    "required_inputs": [
+                      {
+                        "name": "block_id",
+                        "source": "{{trigger.page_id}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "new_page_trigger"
+                    ]
+                  },
+                  {
+                    "id": "add_summary_comment",
+                    "toolkit_slug": "notion",
+                    "action_name": "NOTION_CREATE_COMMENT",
+                    "required_inputs": [
+                      {
+                        "name": "parent_page_id",
+                        "source": "{{trigger.page_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "comment_text",
+                        "source": "{{inputs.ai_summary}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "fetch_content"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.ai_summary",
+                  "prompt": "AI-generated summary of the article content",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_006_FILE_HANDLING",
+      "prompt": "When a new PDF is uploaded to my 'Contracts' folder in Google Drive, send a notification to the #legal channel in Slack.",
+      "latency_ms": 21113,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_007_ECOMMERCE_SHOPIFY",
+      "prompt": "When a new order is placed on Shopify for more than $100, add the customer to my 'VIP Customers' list in Mailchimp.",
+      "latency_ms": 23004,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_008_CRM_VAGUE_PROMPT",
+      "prompt": "Help me manage my sales leads automatically.",
+      "latency_ms": 1732,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_009_PRODUCTIVITY_SLACK_TO_TRELLO",
+      "prompt": "If a message in our #bugs channel in Slack is reacted to with a \ud83d\udc1b emoji, create a new card in the 'Bugs' list on our Trello board.",
+      "latency_ms": 14672,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_010_SINGLE_TOOL_WORKFLOW",
+      "prompt": "Every time I receive an email in Gmail from 'billing@company.com', automatically apply the 'Finances' label to it.",
+      "latency_ms": 14964,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'GMAIL_CREATE_LABEL' in toolkit 'gmail'\", \"Unknown action 'GMAIL_ADD_LABEL_TO_EMAIL' in toolkit 'gmail'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Auto-Label Finance Emails",
+          "triggers": [
+            {
+              "id": "new_email_trigger",
+              "type": "event_based",
+              "toolkit_slug": "gmail",
+              "composio_trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE"
+            }
+          ],
+          "actions": [
+            {
+              "id": "create_label",
+              "toolkit_slug": "gmail",
+              "action_name": "GMAIL_CREATE_LABEL",
+              "required_inputs": [
+                {
+                  "name": "label_name",
+                  "source": "Finances",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "new_email_trigger"
+              ]
+            },
+            {
+              "id": "add_label",
+              "toolkit_slug": "gmail",
+              "action_name": "GMAIL_ADD_LABEL_TO_EMAIL",
+              "required_inputs": [
+                {
+                  "name": "message_id",
+                  "source": "{{trigger.message_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "label_ids",
+                  "source": "{{actions.create_label.label_id}}",
+                  "type": "array"
+                }
+              ],
+              "depends_on": [
+                "create_label"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "c6a0fd3f-56fa-4181-9800-0f3735ac7be6",
+            "title": "Auto-Label Finance Emails",
+            "description": "Automatically applies the Finances label to emails from billing@company.com",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Auto-Label Finance Emails",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "new_email_trigger",
+                "type": "event_based",
+                "toolkit_slug": "gmail",
+                "composio_trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE"
+              },
+              "actions": [
+                {
+                  "id": "create_label",
+                  "toolkit_slug": "gmail",
+                  "action_name": "GMAIL_CREATE_LABEL",
+                  "required_inputs": [
+                    {
+                      "name": "label_name",
+                      "source": "Finances",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "new_email_trigger"
+                  ]
+                },
+                {
+                  "id": "add_label",
+                  "toolkit_slug": "gmail",
+                  "action_name": "GMAIL_ADD_LABEL_TO_EMAIL",
+                  "required_inputs": [
+                    {
+                      "name": "message_id",
+                      "source": "{{trigger.message_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "label_ids",
+                      "source": "{{actions.create_label.label_id}}",
+                      "type": "array"
+                    }
+                  ],
+                  "depends_on": [
+                    "create_label"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [],
+            "confidence": 1.0,
+            "apps": [
+              "gmail"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Auto-Label Finance Emails",
+                "description": "Automatically applies the Finances label to emails from billing@company.com",
+                "triggers": [
+                  {
+                    "id": "new_email_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "gmail",
+                    "composio_trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "create_label",
+                    "toolkit_slug": "gmail",
+                    "action_name": "GMAIL_CREATE_LABEL",
+                    "required_inputs": [
+                      {
+                        "name": "label_name",
+                        "source": "Finances",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "new_email_trigger"
+                    ]
+                  },
+                  {
+                    "id": "add_label",
+                    "toolkit_slug": "gmail",
+                    "action_name": "GMAIL_ADD_LABEL_TO_EMAIL",
+                    "required_inputs": [
+                      {
+                        "name": "message_id",
+                        "source": "{{trigger.message_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "label_ids",
+                        "source": "{{actions.create_label.label_id}}",
+                        "type": "array"
+                      }
+                    ],
+                    "depends_on": [
+                      "create_label"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_011_VAGUE_PROMPT_WITH_APPS",
+      "prompt": "Handle new customers.",
+      "latency_ms": 13563,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'STRIPE_CREATE_SUBSCRIPTION' in toolkit 'stripe'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "New Customer Handler",
+          "triggers": [
+            {
+              "id": "checkout_completed",
+              "type": "event_based",
+              "toolkit_slug": "stripe",
+              "composio_trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER"
+            }
+          ],
+          "actions": [
+            {
+              "id": "create_customer",
+              "toolkit_slug": "stripe",
+              "action_name": "STRIPE_CREATE_CUSTOMER",
+              "required_inputs": [
+                {
+                  "name": "email",
+                  "source": "{{inputs.customer_email}}",
+                  "type": "string"
+                },
+                {
+                  "name": "name",
+                  "source": "{{inputs.customer_name}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "checkout_completed"
+              ]
+            },
+            {
+              "id": "create_subscription",
+              "toolkit_slug": "stripe",
+              "action_name": "STRIPE_CREATE_SUBSCRIPTION",
+              "required_inputs": [
+                {
+                  "name": "customer",
+                  "source": "{{steps.create_customer.output.id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "price",
+                  "source": "{{inputs.subscription_price_id}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "create_customer"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "79bfc4c6-ba35-4dfc-b440-9ac5209dde84",
+            "title": "New Customer Handler",
+            "description": "Handles new customers by creating customer records and subscriptions when checkout is completed",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "New Customer Handler",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "checkout_completed",
+                "type": "event_based",
+                "toolkit_slug": "stripe",
+                "composio_trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER"
+              },
+              "actions": [
+                {
+                  "id": "create_customer",
+                  "toolkit_slug": "stripe",
+                  "action_name": "STRIPE_CREATE_CUSTOMER",
+                  "required_inputs": [
+                    {
+                      "name": "email",
+                      "source": "{{inputs.customer_email}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "name",
+                      "source": "{{inputs.customer_name}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "checkout_completed"
+                  ]
+                },
+                {
+                  "id": "create_subscription",
+                  "toolkit_slug": "stripe",
+                  "action_name": "STRIPE_CREATE_SUBSCRIPTION",
+                  "required_inputs": [
+                    {
+                      "name": "customer",
+                      "source": "{{steps.create_customer.output.id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "price",
+                      "source": "{{inputs.subscription_price_id}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "create_customer"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.customer_email",
+                "prompt": "What is the customer's email address?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.customer_name",
+                "prompt": "What is the customer's name?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.subscription_price_id",
+                "prompt": "What is the Stripe Price ID for the subscription?",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "stripe"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "New Customer Handler",
+                "description": "Handles new customers by creating customer records and subscriptions when checkout is completed",
+                "triggers": [
+                  {
+                    "id": "checkout_completed",
+                    "type": "event_based",
+                    "toolkit_slug": "stripe",
+                    "composio_trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "create_customer",
+                    "toolkit_slug": "stripe",
+                    "action_name": "STRIPE_CREATE_CUSTOMER",
+                    "required_inputs": [
+                      {
+                        "name": "email",
+                        "source": "{{inputs.customer_email}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "name",
+                        "source": "{{inputs.customer_name}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "checkout_completed"
+                    ]
+                  },
+                  {
+                    "id": "create_subscription",
+                    "toolkit_slug": "stripe",
+                    "action_name": "STRIPE_CREATE_SUBSCRIPTION",
+                    "required_inputs": [
+                      {
+                        "name": "customer",
+                        "source": "{{steps.create_customer.output.id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "price",
+                        "source": "{{inputs.subscription_price_id}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "create_customer"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.customer_email",
+                  "prompt": "What is the customer's email address?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.customer_name",
+                  "prompt": "What is the customer's name?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.subscription_price_id",
+                  "prompt": "What is the Stripe Price ID for the subscription?",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_012_FAILURE_MISSING_ACTION",
+      "prompt": "Post a message to our #deployments channel in Discord whenever a push is made to the main branch of our GitHub repository.",
+      "latency_ms": 13470,
+      "is_valid_schema": true,
+      "accuracy_score": 0.67,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_013_SPECIFIC_AND_COMPLEX",
+      "prompt": "When a Google Calendar event named 'Client Onboarding' is about to start, create a new Notion page for meeting notes from a template, and send a Slack DM to the attendees with the Notion page link.",
+      "latency_ms": 18852,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'NOTION_CREATE_NOTION_PAGE' in toolkit 'notion'\", \"Unknown action 'NOTION_ADD_MULTIPLE_PAGE_CONTENT' in toolkit 'notion'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Client Onboarding Meeting Notes Automation",
+          "triggers": [
+            {
+              "id": "page_creation_trigger",
+              "type": "event_based",
+              "toolkit_slug": "notion",
+              "composio_trigger_slug": "NOTION_PAGE_ADDED_TRIGGER"
+            }
+          ],
+          "actions": [
+            {
+              "id": "create_notes_page",
+              "toolkit_slug": "notion",
+              "action_name": "NOTION_CREATE_NOTION_PAGE",
+              "required_inputs": [
+                {
+                  "name": "parent_page_id",
+                  "source": "{{inputs.parent_page_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "title",
+                  "source": "{{inputs.meeting_title}}",
+                  "type": "string"
+                }
+              ],
+              "depends_on": [
+                "page_creation_trigger"
+              ]
+            },
+            {
+              "id": "add_page_content",
+              "toolkit_slug": "notion",
+              "action_name": "NOTION_ADD_MULTIPLE_PAGE_CONTENT",
+              "required_inputs": [
+                {
+                  "name": "page_id",
+                  "source": "{{actions.create_notes_page.page_id}}",
+                  "type": "string"
+                },
+                {
+                  "name": "content",
+                  "source": "{{inputs.template_content}}",
+                  "type": "array"
+                }
+              ],
+              "depends_on": [
+                "create_notes_page"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "949fa5b3-f1ed-46ea-840a-fc7b8cb0105d",
+            "title": "Client Onboarding Meeting Notes Automation",
+            "description": "Creates a Notion page for meeting notes when Client Onboarding calendar event starts",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Client Onboarding Meeting Notes Automation",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "page_creation_trigger",
+                "type": "event_based",
+                "toolkit_slug": "notion",
+                "composio_trigger_slug": "NOTION_PAGE_ADDED_TRIGGER"
+              },
+              "actions": [
+                {
+                  "id": "create_notes_page",
+                  "toolkit_slug": "notion",
+                  "action_name": "NOTION_CREATE_NOTION_PAGE",
+                  "required_inputs": [
+                    {
+                      "name": "parent_page_id",
+                      "source": "{{inputs.parent_page_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "title",
+                      "source": "{{inputs.meeting_title}}",
+                      "type": "string"
+                    }
+                  ],
+                  "depends_on": [
+                    "page_creation_trigger"
+                  ]
+                },
+                {
+                  "id": "add_page_content",
+                  "toolkit_slug": "notion",
+                  "action_name": "NOTION_ADD_MULTIPLE_PAGE_CONTENT",
+                  "required_inputs": [
+                    {
+                      "name": "page_id",
+                      "source": "{{actions.create_notes_page.page_id}}",
+                      "type": "string"
+                    },
+                    {
+                      "name": "content",
+                      "source": "{{inputs.template_content}}",
+                      "type": "array"
+                    }
+                  ],
+                  "depends_on": [
+                    "create_notes_page"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.parent_page_id",
+                "prompt": "What is the ID of the parent page where meeting notes should be created?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.meeting_title",
+                "prompt": "What should be the title format for the meeting notes page?",
+                "type_hint": "string"
+              },
+              {
+                "path": "inputs.template_content",
+                "prompt": "What content blocks should be included in the meeting notes template?",
+                "type_hint": "array"
+              },
+              {
+                "path": "missing_capability.calendar_trigger",
+                "prompt": "Google Calendar trigger capability is needed but not available in current tools",
+                "type_hint": "string"
+              },
+              {
+                "path": "missing_capability.slack_message",
+                "prompt": "Slack message sending capability is needed but not available in current tools",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "notion"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Client Onboarding Meeting Notes Automation",
+                "description": "Creates a Notion page for meeting notes when Client Onboarding calendar event starts",
+                "triggers": [
+                  {
+                    "id": "page_creation_trigger",
+                    "type": "event_based",
+                    "toolkit_slug": "notion",
+                    "composio_trigger_slug": "NOTION_PAGE_ADDED_TRIGGER"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "create_notes_page",
+                    "toolkit_slug": "notion",
+                    "action_name": "NOTION_CREATE_NOTION_PAGE",
+                    "required_inputs": [
+                      {
+                        "name": "parent_page_id",
+                        "source": "{{inputs.parent_page_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "title",
+                        "source": "{{inputs.meeting_title}}",
+                        "type": "string"
+                      }
+                    ],
+                    "depends_on": [
+                      "page_creation_trigger"
+                    ]
+                  },
+                  {
+                    "id": "add_page_content",
+                    "toolkit_slug": "notion",
+                    "action_name": "NOTION_ADD_MULTIPLE_PAGE_CONTENT",
+                    "required_inputs": [
+                      {
+                        "name": "page_id",
+                        "source": "{{actions.create_notes_page.page_id}}",
+                        "type": "string"
+                      },
+                      {
+                        "name": "content",
+                        "source": "{{inputs.template_content}}",
+                        "type": "array"
+                      }
+                    ],
+                    "depends_on": [
+                      "create_notes_page"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.parent_page_id",
+                  "prompt": "What is the ID of the parent page where meeting notes should be created?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.meeting_title",
+                  "prompt": "What should be the title format for the meeting notes page?",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "inputs.template_content",
+                  "prompt": "What content blocks should be included in the meeting notes template?",
+                  "type": "array",
+                  "required": true
+                },
+                {
+                  "field": "missing_capability.calendar_trigger",
+                  "prompt": "Google Calendar trigger capability is needed but not available in current tools",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "missing_capability.slack_message",
+                  "prompt": "Slack message sending capability is needed but not available in current tools",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "CASE_014_UNSUPPORTED_GRACEFUL_FAIL",
+      "prompt": "Send me a WhatsApp message every morning with the top story from Hacker News.",
+      "latency_ms": 1366,
+      "is_valid_schema": true,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": null,
+      "generated_dsl": {
+        "suggestions": []
+      },
+      "api_response": {
+        "suggestions": []
+      }
+    },
+    {
+      "case_id": "CASE_015_WEEKLY_SCHEDULE",
+      "prompt": "Every Friday, get the total number of new customers from Stripe this week and post it to the #weekly-summary Slack channel.",
+      "latency_ms": 26135,
+      "is_valid_schema": false,
+      "accuracy_score": 0.0,
+      "steps_generated": 0,
+      "error_message": "Validation Failed: [\"Unknown action 'STRIPE_LIST_CUSTOMERS' in toolkit 'stripe'\"]",
+      "generated_dsl": {
+        "workflow": {
+          "name": "Weekly Stripe Customer Count Report",
+          "triggers": [
+            {
+              "id": "weekly_trigger",
+              "type": "scheduled",
+              "toolkit_slug": "stripe",
+              "composio_trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER"
+            }
+          ],
+          "actions": [
+            {
+              "id": "list_customers",
+              "toolkit_slug": "stripe",
+              "action_name": "STRIPE_LIST_CUSTOMERS",
+              "required_inputs": [
+                {
+                  "name": "created",
+                  "source": "{{inputs.created_after}}",
+                  "type": "object"
+                },
+                {
+                  "name": "limit",
+                  "source": "100",
+                  "type": "number"
+                }
+              ],
+              "depends_on": [
+                "weekly_trigger"
+              ]
+            }
+          ]
+        }
+      },
+      "api_response": {
+        "suggestions": [
+          {
+            "suggestion_id": "97f5f209-0371-4fa6-8df5-77c3c4338820",
+            "title": "Weekly Stripe Customer Count Report",
+            "description": "Gets the total number of new Stripe customers each week and posts to Slack",
+            "dsl_parametric": {
+              "version": 1,
+              "name": "Weekly Stripe Customer Count Report",
+              "connections": {},
+              "consent": null,
+              "trigger": {
+                "id": "weekly_trigger",
+                "type": "scheduled",
+                "toolkit_slug": "stripe",
+                "composio_trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER"
+              },
+              "actions": [
+                {
+                  "id": "list_customers",
+                  "toolkit_slug": "stripe",
+                  "action_name": "STRIPE_LIST_CUSTOMERS",
+                  "required_inputs": [
+                    {
+                      "name": "created",
+                      "source": "{{inputs.created_after}}",
+                      "type": "object"
+                    },
+                    {
+                      "name": "limit",
+                      "source": "100",
+                      "type": "number"
+                    }
+                  ],
+                  "depends_on": [
+                    "weekly_trigger"
+                  ]
+                }
+              ],
+              "error_policy": null,
+              "observability": null
+            },
+            "missing_fields": [
+              {
+                "path": "inputs.created_after",
+                "prompt": "Please provide the date filter to get customers created after (in Unix timestamp)",
+                "type_hint": "string"
+              },
+              {
+                "path": "schedule",
+                "prompt": "This workflow requires a CRON schedule trigger for Fridays",
+                "type_hint": "string"
+              },
+              {
+                "path": "slack_integration",
+                "prompt": "This workflow requires a Slack message sending capability which is not available in the current toolkit",
+                "type_hint": "string"
+              }
+            ],
+            "confidence": 0.8,
+            "apps": [
+              "stripe"
+            ],
+            "source": "generator",
+            "full_workflow_json": {
+              "schema_type": "template",
+              "workflow": {
+                "name": "Weekly Stripe Customer Count Report",
+                "description": "Gets the total number of new Stripe customers each week and posts to Slack",
+                "triggers": [
+                  {
+                    "id": "weekly_trigger",
+                    "type": "scheduled",
+                    "toolkit_slug": "stripe",
+                    "composio_trigger_slug": "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER"
+                  }
+                ],
+                "actions": [
+                  {
+                    "id": "list_customers",
+                    "toolkit_slug": "stripe",
+                    "action_name": "STRIPE_LIST_CUSTOMERS",
+                    "required_inputs": [
+                      {
+                        "name": "created",
+                        "source": "{{inputs.created_after}}",
+                        "type": "object"
+                      },
+                      {
+                        "name": "limit",
+                        "source": "100",
+                        "type": "number"
+                      }
+                    ],
+                    "depends_on": [
+                      "weekly_trigger"
+                    ]
+                  }
+                ]
+              },
+              "missing_information": [
+                {
+                  "field": "inputs.created_after",
+                  "prompt": "Please provide the date filter to get customers created after (in Unix timestamp)",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "schedule",
+                  "prompt": "This workflow requires a CRON schedule trigger for Fridays",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "field": "slack_integration",
+                  "prompt": "This workflow requires a Slack message sending capability which is not available in the current toolkit",
+                  "type": "string",
+                  "required": true
+                }
+              ],
+              "confidence": 80
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
