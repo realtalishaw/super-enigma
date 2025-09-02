@@ -394,14 +394,8 @@ class DSLGeneratorService:
                             # List structure: [trigger_data, trigger_data, ...]
                             for trigger_data in triggers:
                                 if isinstance(trigger_data, dict):
-                                    # Try multiple possible slug fields
-                                    trigger_slug = (
-                                        trigger_data.get('slug') or 
-                                        trigger_data.get('trigger_slug') or 
-                                        trigger_data.get('name') or 
-                                        trigger_data.get('id') or 
-                                        'unknown_trigger'
-                                    )
+                                    # Use the slug field from database
+                                    trigger_slug = trigger_data.get('slug') or 'unknown_trigger'
                                     pruned_context['triggers'].append({
                                         'toolkit_slug': app_slug,
                                         'trigger_slug': trigger_slug,
@@ -425,14 +419,8 @@ class DSLGeneratorService:
                             # List structure: [action_data, action_data, ...]
                             for action_data in actions:
                                 if isinstance(action_data, dict):
-                                    # Try multiple possible slug fields
-                                    action_slug = (
-                                        action_data.get('slug') or 
-                                        action_data.get('action_slug') or 
-                                        action_data.get('name') or 
-                                        action_data.get('id') or 
-                                        'unknown_action'
-                                    )
+                                    # Use the slug field from database
+                                    action_slug = action_data.get('slug') or 'unknown_action'
                                     pruned_context['actions'].append({
                                         'toolkit_slug': app_slug,
                                         'action_slug': action_slug,
@@ -485,12 +473,27 @@ class DSLGeneratorService:
             # Count how many have meaningful slugs
             meaningful_triggers = [t for t in pruned_context['triggers'] if t.get('trigger_slug') and not t.get('trigger_slug').startswith('unknown')]
             logger.info(f"Triggers with meaningful slugs: {len(meaningful_triggers)}/{len(pruned_context['triggers'])}")
+            
+            # Log any triggers missing slugs
+            missing_slug_triggers = [t for t in pruned_context['triggers'] if not t.get('trigger_slug')]
+            if missing_slug_triggers:
+                logger.warning(f"Found {len(missing_slug_triggers)} triggers without trigger_slug")
+                for trigger in missing_slug_triggers[:3]:
+                    logger.warning(f"  Trigger: {trigger.get('name')} - missing trigger_slug")
+                    
         if pruned_context['actions']:
             sample_actions = [a.get('action_slug', 'unknown') for a in pruned_context['actions'][:3]]
             logger.info(f"Sample actions found: {sample_actions}")
             # Count how many have meaningful slugs
             meaningful_actions = [a for a in pruned_context['actions'] if a.get('action_slug') and not a.get('action_slug').startswith('unknown')]
             logger.info(f"Actions with meaningful slugs: {len(meaningful_actions)}/{len(pruned_context['actions'])}")
+            
+            # Log any actions missing slugs
+            missing_slug_actions = [a for a in pruned_context['actions'] if not a.get('action_slug')]
+            if missing_slug_actions:
+                logger.warning(f"Found {len(missing_slug_actions)} actions without action_slug")
+                for action in missing_slug_actions[:3]:
+                    logger.warning(f"  Action: {action.get('name')} - missing action_slug")
         
         return pruned_context
     
@@ -725,46 +728,70 @@ class DSLGeneratorService:
         return pruned_context
 
     def _build_groq_tool_selection_prompt(self, user_prompt: str, available_toolkits: list[dict]) -> str:
-        """Builds the prompt for the Groq API to select relevant toolkits."""
-        toolkits_context = "\n".join(
-            f"- slug: {tk['slug']}, description: {tk['description']}" for tk in available_toolkits
-        )
-        return f"""You are an intelligent workflow routing assistant. Your job is to analyze a user's request and identify the specific software toolkits required to fulfill it from a predefined list.
+        """
+        Builds a sophisticated prompt for Groq to pre-plan the workflow by selecting
+        the exact trigger and action slugs.
+        """
+        
+        # --- IMPROVEMENT: Format the full tool list for the LLM ---
+        # This gives the LLM the necessary context to choose specific, valid tools.
+        tool_context_str = ""
+        for toolkit in available_toolkits:
+            tool_context_str += f"\n- Toolkit: {toolkit['slug']}\n"
+            tool_context_str += f"  Description: {toolkit['description']}\n"
+            
+            # Get triggers from the full catalog cache, not just the summary
+            full_toolkit_data = self._catalog_cache.get("toolkits", {}).get(toolkit['slug'], {})
+            
+            triggers = full_toolkit_data.get("triggers", [])
+            if triggers:
+                tool_context_str += "  Triggers:\n"
+                for t in triggers:
+                    slug = t.get('slug') or t.get('name')
+                    desc = t.get('description', 'No description.')
+                    tool_context_str += f"    - slug: \"{slug}\", description: \"{desc}\"\n"
+            
+            actions = full_toolkit_data.get("actions", [])
+            if actions:
+                tool_context_str += "  Actions:\n"
+                for a in actions:
+                    slug = a.get('slug') or a.get('name')
+                    desc = a.get('description', 'No description.')
+                    tool_context_str += f"    - slug: \"{slug}\", description: \"{desc}\"\n"
+
+        prompt = f"""You are an expert workflow architect. Your job is to analyze a user's request and design a logical sequence of operations by selecting ONE trigger and one or more actions from a comprehensive catalog of available tools.
 
 <user_request>
 {user_prompt}
 </user_request>
 
-<available_toolkits>
-{toolkits_context}
-</available_toolkits>
+<available_tools>
+{tool_context_str}
+</available_tools>
 
 **Your Task:**
-Based on the user's request, identify the most relevant toolkits. Your response MUST be a JSON object containing a single key, `required_toolkits`, which is a list of the exact `slug`s from the provided list.
+1.  **Reasoning:** First, think step-by-step about how to accomplish the user's goal with the available tools.
+2.  **Tool Selection:** Based on your reasoning, select exactly ONE trigger and a sequence of one or more actions.
+3.  **JSON Output:** Your response MUST be a JSON object with three keys: "reasoning", "trigger_slug", and "action_slugs".
 
-**Rules:**
-1. Only include slugs that are absolutely necessary to fulfill the request.
-2. If the user asks for a specific tool that is not in the list, do not include it.
-3. If the request is too vague to determine specific tools, or if none of the tools are relevant, return an empty list.
-4. Your response must ONLY be the JSON object, with no preamble or explanation.
+**Rules for Tool Selection:**
+- The slugs in your response MUST be an EXACT match to a slug from the `<available_tools>` list.
+- If a suitable workflow cannot be built, return `null` for `trigger_slug` and an empty list for `action_slugs`.
 
 **Example:**
 <user_request>
-When I get a new lead in Salesforce, send a welcome email using SendGrid.
+When I get a new lead in Salesforce, add them to a Google Sheet and send a celebration message in Slack.
 </user_request>
-<available_toolkits>
-- slug: salesforce, description: CRM and sales automation.
-- slug: slack, description: Team communication and messaging.
-- slug: sendgrid, description: Email delivery service.
-- slug: google_drive, description: File storage and synchronization.
-</available_toolkits>
 
 **Expected JSON Response:**
 ```json
 {{
-    "required_toolkits": ["salesforce", "sendgrid"]
+    "reasoning": "The workflow starts when a new lead is created in Salesforce. Then, it adds a new row to a Google Sheet with the lead's information. Finally, it posts a message to a Slack channel to announce the new lead.",
+    "trigger_slug": "SALESFORCE_NEW_LEAD_TRIGGER",
+    "action_slugs": ["GOOGLESHEETS_CREATE_SPREADSHEET_ROW", "SLACK_SEND_MESSAGE"]
 }}
 ```
+
 Now, analyze the user request provided at the top and generate the JSON response."""
 
     def _validate_generated_workflow(self, workflow_data: Dict[str, Any], catalog_context: Dict[str, Any]) -> List[str]:
@@ -949,6 +976,57 @@ Now, analyze the user request provided at the top and generate the JSON response
 }]
 }}"""
 
+    def _check_tool_hallucinations(self, dsl: Dict[str, Any], catalog_context: Dict[str, Any]) -> List[str]:
+        """
+        A simple, fast check to see if the LLM used tools that weren't in its context.
+        Returns a list of error strings for feedback.
+        """
+        errors = []
+        available_triggers = set()
+        available_actions = set()
+
+        # Build sets of available tools from catalog context
+        for toolkit_slug, data in catalog_context.get("toolkits", {}).items():
+            for t in data.get("triggers", []):
+                available_triggers.add(f"{toolkit_slug}.{t.get('slug') or t.get('name')}")
+            for a in data.get("actions", []):
+                available_actions.add(f"{toolkit_slug}.{a.get('slug') or a.get('name')}")
+
+        # Also check the triggers and actions lists directly (for the new format)
+        for trigger in catalog_context.get("triggers", []):
+            toolkit_slug = trigger.get("toolkit_slug", "")
+            trigger_slug = trigger.get("trigger_slug", "") or trigger.get("slug", "")
+            if toolkit_slug and trigger_slug:
+                available_triggers.add(f"{toolkit_slug}.{trigger_slug}")
+
+        for action in catalog_context.get("actions", []):
+            toolkit_slug = action.get("toolkit_slug", "")
+            action_slug = action.get("action_slug", "") or action.get("slug", "")
+            if toolkit_slug and action_slug:
+                available_actions.add(f"{toolkit_slug}.{action_slug}")
+
+        workflow = dsl.get("workflow", {})
+        
+        # Check triggers
+        for trigger in workflow.get("triggers", []):
+            toolkit_slug = trigger.get("toolkit_slug", "")
+            trigger_slug = trigger.get("composio_trigger_slug", "")
+            if toolkit_slug and trigger_slug:
+                slug = f"{toolkit_slug}.{trigger_slug}"
+                if slug not in available_triggers:
+                    errors.append(f"Invalid trigger: '{slug}'. It is not in the <available_tools> list.")
+            
+        # Check actions
+        for action in workflow.get("actions", []):
+            toolkit_slug = action.get("toolkit_slug", "")
+            action_name = action.get("action_name", "")
+            if toolkit_slug and action_name:
+                slug = f"{toolkit_slug}.{action_name}"
+                if slug not in available_actions:
+                    errors.append(f"Invalid action: '{slug}'. It is not in the <available_tools> list.")
+            
+        return errors
+
     def _build_robust_claude_prompt(self, request: GenerationRequest, catalog_context: Dict[str, Any], previous_errors: List[str]) -> str:
         """Builds an aggressive, explicit prompt for Claude with clear tool context and strict validation rules."""
         
@@ -1084,6 +1162,24 @@ Now, generate the complete JSON for the user's request."""
                     previous_errors.append(error_msg)
                     logger.warning(f"Attempt {attempt + 1} failed during parsing: {error_msg}")
                     continue
+
+                # --- NEW: AGGRESSIVE PRE-VALIDATION CHECK ---
+                if parsed_response.dsl_template:
+                    # Convert DSL template to dict for checking
+                    dsl_dict = parsed_response.dsl_template
+                    if hasattr(dsl_dict, 'dict'):
+                        dsl_dict = dsl_dict.dict()
+                    elif hasattr(dsl_dict, 'workflow'):
+                        dsl_dict = {'workflow': dsl_dict.workflow}
+                        if hasattr(dsl_dict['workflow'], 'dict'):
+                            dsl_dict['workflow'] = dsl_dict['workflow'].dict()
+                    
+                    tool_errors = self._check_tool_hallucinations(dsl_dict, catalog_context)
+                    if tool_errors:
+                        logger.warning(f"Tool Hallucination Detected: {tool_errors}")
+                        previous_errors.extend(tool_errors)
+                        continue  # Force a retry with this specific feedback
+                # ---------------------------------------------
 
                 # Perform custom validation against available tools
                 if parsed_response.dsl_template and hasattr(parsed_response.dsl_template, 'workflow'):
