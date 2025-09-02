@@ -17,6 +17,7 @@ from .context_builder import ContextBuilder
 from .prompt_builder import PromptBuilder
 from .ai_client import AIClient
 from .response_parser import ResponseParser
+from .workflow_validator import WorkflowValidator
 
 from core.config import settings
 
@@ -48,6 +49,7 @@ class DSLGeneratorService:
         self.prompt_builder = PromptBuilder()
         self.ai_client = AIClient(anthropic_api_key)
         self.response_parser = ResponseParser()
+        self.workflow_validator = WorkflowValidator()
 
         
         # Groq configuration for tool retrieval (from config)
@@ -1205,35 +1207,74 @@ Now, generate the complete JSON for the user's request."""
                         previous_errors.append("Generated workflow format is invalid")
                         continue
 
-                # Skip validation - just return whatever Claude generated
-                logger.info("Skipping validation - returning Claude's generated workflow directly")
-                validation_result = {
-                    'is_valid': True,
-                    'validation_errors': [],
-                    'lint_errors': [],
-                    'lint_warnings': [],
-                    'lint_hints': []
-                }
+                # --- THIS IS THE FIX ---
+                # ALWAYS validate the generated DSL against the catalog context
+                logger.info("Validating generated workflow against catalog context...")
                 
-                if validation_result.get('is_valid', False):
-                    logger.info("Generated workflow passed validation successfully!")
-                    return parsed_response
-                else:
-                    # Extract error messages from the validation result
+                # Convert DSL template to dict for validation
+                dsl_dict = parsed_response.dsl_template
+                if hasattr(dsl_dict, 'dict'):
+                    dsl_dict = dsl_dict.dict()
+                elif hasattr(dsl_dict, 'workflow'):
+                    dsl_dict = {'workflow': dsl_dict.workflow}
+                    if hasattr(dsl_dict['workflow'], 'dict'):
+                        dsl_dict['workflow'] = dsl_dict['workflow'].dict()
+                
+                # Check for tool hallucinations first (fast check)
+                tool_errors = self._check_tool_hallucinations(dsl_dict, catalog_context)
+                
+                # Perform comprehensive validation using WorkflowValidator
+                try:
+                    # Create GenerationContext for the validator
+                    schema_definition = self.context_builder._load_schema_definition()
+                    catalog_context_obj = CatalogContext(
+                        available_providers=list(catalog_context.get('providers', {}).values()),
+                        available_triggers=catalog_context.get('triggers', []),
+                        available_actions=catalog_context.get('actions', []),
+                        provider_categories=[]
+                    )
+                    
+                    generation_context = GenerationContext(
+                        request=request,
+                        catalog=catalog_context_obj,
+                        schema_definition=schema_definition
+                    )
+                    
+                    # Use WorkflowValidator for comprehensive validation
+                    validation_result = await self.workflow_validator.validate_generated_workflow(
+                        dsl_dict, 
+                        generation_context, 
+                        "template"  # Assuming template workflow type
+                    )
+                    
+                    # Extract validation errors from the result
                     validation_errors = validation_result.get('validation_errors', [])
                     lint_errors = validation_result.get('lint_errors', [])
                     
-                    error_messages = []
-                    if validation_errors:
-                        error_messages.extend([f"Validation: {e}" for e in validation_errors])
-                    if lint_errors:
-                        error_messages.extend([f"Lint: {e}" for e in lint_errors])
+                    # Combine all validation errors
+                    all_errors = tool_errors + validation_errors + lint_errors
                     
-                    if not error_messages:
-                        error_messages = ["Unknown validation error"]
+                    if not all_errors:
+                        logger.info("Generated workflow passed comprehensive validation successfully!")
+                        return parsed_response
+                    else:
+                        logger.warning(f"Validation failed with {len(all_errors)} errors: {all_errors}")
+                        previous_errors.extend(all_errors)
+                        # The loop will continue to the next attempt with specific feedback
+                        
+                except Exception as validation_exception:
+                    logger.error(f"Error during comprehensive validation: {validation_exception}")
+                    # Fall back to basic validation if WorkflowValidator fails
+                    basic_validation_errors = self._validate_generated_workflow(dsl_dict, catalog_context)
+                    all_errors = tool_errors + basic_validation_errors
                     
-                    logger.warning(f"Validation failed with {len(error_messages)} errors: {error_messages}")
-                    previous_errors.extend(error_messages)
+                    if not all_errors:
+                        logger.info("Generated workflow passed basic validation successfully!")
+                        return parsed_response
+                    else:
+                        logger.warning(f"Basic validation failed with {len(all_errors)} errors: {all_errors}")
+                        previous_errors.extend(all_errors)
+                        # The loop will continue to the next attempt with specific feedback
 
             except Exception as e:
                 logger.exception(f"An unexpected exception occurred on attempt {attempt + 1}.")
