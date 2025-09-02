@@ -306,42 +306,95 @@ class CatalogManager:
         """Extract available triggers from providers"""
         triggers = []
         if not providers:
+            logger.warning("No providers provided to extract_triggers")
             return triggers
-            
-        for provider in providers.values():
+        
+        logger.debug(f"Extracting triggers from {len(providers)} providers")
+        logger.debug(f"Provider keys: {list(providers.keys())[:5]}...")  # Show first 5 keys
+        
+        for provider_key, provider in providers.items():
+            logger.debug(f"Processing provider: {provider_key}")
             if 'triggers' in provider:
+                triggers_count = len(provider['triggers'])
+                logger.debug(f"  Found {triggers_count} triggers in provider {provider_key}")
+                
                 for trigger in provider['triggers']:
+                    # Try to find the best identifier for the trigger
+                    trigger_identifier = (
+                        trigger.get('id') or 
+                        trigger.get('name') or 
+                        trigger.get('slug') or
+                        f"trigger_{len(triggers)}"  # Fallback identifier
+                    )
+                    
                     trigger_info = {
-                        'id': trigger.get('id'),
+                        'id': trigger_identifier,  # Use the best identifier found
                         'name': trigger.get('name'),
                         'type': trigger.get('type'),
+                        'slug': trigger.get('slug'),  # Keep original slug if it exists
                         'toolkit_slug': provider.get('slug'),
                         'toolkit_name': provider.get('name'),
                         'description': trigger.get('description', ''),
                         'parameters': trigger.get('parameters', [])
                     }
                     triggers.append(trigger_info)
+            else:
+                logger.debug(f"  No triggers found in provider {provider_key}")
+        
+        logger.info(f"Extracted {len(triggers)} triggers from {len(providers)} providers")
+        if triggers:
+            logger.debug(f"Sample trigger structure: {triggers[0]}")
+        else:
+            logger.warning("No triggers were extracted from any providers")
+        
         return triggers
     
     def extract_actions(self, providers: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract available actions from providers"""
         actions = []
         if not providers:
+            logger.warning("No providers provided to extract_actions")
             return actions
-            
-        for provider in providers.values():
+        
+        logger.debug(f"Extracting actions from {len(providers)} providers")
+        logger.debug(f"Provider keys: {list(providers.keys())[:5]}...")  # Show first 5 keys
+        
+        for provider_key, provider in providers.items():
+            logger.debug(f"Processing provider: {provider_key}")
             if 'actions' in provider:
+                actions_count = len(provider['actions'])
+                logger.debug(f"  Found {actions_count} actions in provider {provider_key}")
+                
                 for action in provider['actions']:
+                    # Try to find the best identifier for the action
+                    action_identifier = (
+                        action.get('action_name') or 
+                        action.get('name') or 
+                        action.get('id') or 
+                        action.get('slug') or
+                        f"action_{len(actions)}"  # Fallback identifier
+                    )
+                    
                     action_info = {
                         'id': action.get('id'),
                         'name': action.get('name'),
-                        'action_name': action.get('action_name'),
+                        'action_name': action_identifier,  # Use the best identifier found
+                        'slug': action.get('slug'),  # Keep original slug if it exists
                         'toolkit_slug': provider.get('slug'),
                         'toolkit_name': provider.get('name'),
                         'description': action.get('description', ''),
                         'parameters': action.get('parameters', [])
                     }
                     actions.append(action_info)
+            else:
+                logger.debug(f"  No actions found in provider {provider_key}")
+        
+        logger.info(f"Extracted {len(actions)} actions from {len(providers)} providers")
+        if actions:
+            logger.debug(f"Sample action structure: {actions[0]}")
+        else:
+            logger.warning("No actions were extracted from any providers")
+        
         return actions
     
     def extract_categories(self, providers: Dict[str, Any]) -> List[Dict[str, Any]]:

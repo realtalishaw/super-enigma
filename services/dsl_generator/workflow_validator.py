@@ -151,20 +151,20 @@ class WorkflowValidator:
             
             # Perform validation
             logger.info(f"[LINE 110] Starting schema validation...")
-            validation_result = validate(dsl_template, stage)
-            logger.info(f"[LINE 111] Schema validation result: {validation_result}")
+            validation_response = await validate(stage, dsl_template)
+            logger.info(f"[LINE 111] Schema validation result: {validation_response}")
             
             # Perform linting
             logger.info(f"[LINE 113] Starting linting...")
-            lint_result = lint(dsl_template, stage, lint_context)
-            logger.info(f"[LINE 114] Lint result: {lint_result}")
+            lint_report = await lint(stage, dsl_template, lint_context)
+            logger.info(f"[LINE 114] Lint result: {lint_report}")
             
             # Combine results
-            is_valid = validation_result.get('is_valid', False)
-            validation_errors = validation_result.get('errors', [])
-            lint_errors = lint_result.get('errors', [])
-            lint_warnings = lint_result.get('warnings', [])
-            lint_hints = lint_result.get('hints', [])
+            is_valid = validation_response.ok
+            validation_errors = validation_response.errors
+            lint_errors = lint_report.errors
+            lint_warnings = lint_report.warnings
+            lint_hints = lint_report.hints
             
             logger.info(f"[LINE 120] Combined validation results:")
             logger.info(f"[LINE 121] - is_valid: {is_valid}")

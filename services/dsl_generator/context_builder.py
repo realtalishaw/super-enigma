@@ -42,6 +42,21 @@ class ContextBuilder:
                 provider_categories=self.catalog_manager.extract_categories(providers)
             )
             
+            # Log catalog context for debugging
+            logger.info(f"Built catalog context with:")
+            logger.info(f"  - {len(catalog_context.available_providers)} providers")
+            logger.info(f"  - {len(catalog_context.available_triggers)} triggers")
+            logger.info(f"  - {len(catalog_context.available_actions)} actions")
+            logger.info(f"  - {len(catalog_context.provider_categories)} categories")
+            
+            # Debug: log sample data
+            if catalog_context.available_actions:
+                logger.debug(f"Sample action: {catalog_context.available_actions[0]}")
+            if catalog_context.available_triggers:
+                logger.debug(f"Sample trigger: {catalog_context.available_triggers[0]}")
+            if catalog_context.available_providers:
+                logger.debug(f"Sample provider: {catalog_context.available_providers[0]}")
+            
             # Filter by selected apps if specified
             if request.selected_apps:
                 catalog_context = self._filter_catalog_by_apps(

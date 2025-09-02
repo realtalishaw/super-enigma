@@ -197,12 +197,46 @@ class PromptBuilder:
         if not toolkits:
             return "No toolkits available"
         
-        formatted = []
-        for toolkit in toolkits[:20]:  # Limit to first 20
-            formatted.append(f"- {toolkit.get('name', 'Unknown')} ({toolkit.get('slug', 'unknown')})")
-            if toolkit.get('description'):
-                formatted.append(f"  Description: {toolkit['description']}")
+        import logging
+        logger = logging.getLogger(__name__)
         
+        # Debug: log first few toolkits to see structure
+        logger.debug(f"Formatting {len(toolkits)} toolkits")
+        if toolkits:
+            logger.debug(f"First toolkit data: {toolkits[0]}")
+            for i, toolkit in enumerate(toolkits[:3]):
+                logger.debug(f"Toolkit {i}: keys={list(toolkit.keys())}, name={toolkit.get('name')}, slug={toolkit.get('slug')}")
+        
+        formatted = []
+        meaningful_slugs = 0
+        total_toolkits = len(toolkits[:20])  # Limit to first 20
+        
+        for toolkit in toolkits[:20]:  # Limit to first 20
+            name = toolkit.get('name', 'Unknown')
+            slug = toolkit.get('slug', 'unknown')
+            
+            # Only include toolkits that have a valid slug
+            if slug and slug != 'unknown':
+                meaningful_slugs += 1
+                formatted.append(f"- {name} (slug: {slug})")
+                if toolkit.get('description'):
+                    formatted.append(f"  Description: {toolkit['description']}")
+        
+        logger.info(f"Toolkits with meaningful slugs: {meaningful_slugs}/{total_toolkits}")
+        
+        if not formatted:
+            # Fallback: show some basic toolkit examples
+            fallback_toolkits = [
+                "- Gmail (slug: gmail)",
+                "- Slack (slug: slack)",
+                "- GitHub (slug: github)",
+                "- Linear (slug: linear)",
+                "- Notion (slug: notion)"
+            ]
+            logger.warning(f"No valid toolkits found in catalog, using fallback examples")
+            return "\n".join(fallback_toolkits)
+        
+        logger.debug(f"Formatted {len(formatted)} valid toolkits")
         return "\n".join(formatted)
     
     def _format_triggers_for_prompt(self, triggers: List[Dict[str, Any]]) -> str:
@@ -210,15 +244,47 @@ class PromptBuilder:
         if not triggers:
             return "No triggers available"
         
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Debug: log first few triggers to see structure
+        logger.debug(f"Formatting {len(triggers)} triggers")
+        if triggers:
+            logger.debug(f"First trigger data: {triggers[0]}")
+            for i, trigger in enumerate(triggers[:3]):
+                logger.debug(f"Trigger {i}: keys={list(trigger.keys())}, id={trigger.get('id')}, name={trigger.get('name')}, slug={trigger.get('slug')}")
+        
         formatted = []
+        meaningful_ids = 0
+        total_triggers = len(triggers[:15])  # Limit to first 15
+        
         for trigger in triggers[:15]:  # Limit to first 15
             trigger_id = trigger.get('id', 'unknown_id')
             toolkit_slug = trigger.get('toolkit_slug', 'unknown_toolkit')
             name = trigger.get('name', 'Unknown')
-            formatted.append(f"- trigger_id: {trigger_id} (toolkit_slug: {toolkit_slug}) — {name}")
-            if trigger.get('description'):
-                formatted.append(f"  Description: {trigger['description']}")
+            
+            # Only include triggers that have a valid identifier
+            if trigger_id and trigger_id != 'unknown_id':
+                meaningful_ids += 1
+                formatted.append(f"- trigger_id: {trigger_id} (toolkit_slug: {toolkit_slug}) — {name}")
+                if trigger.get('description'):
+                    formatted.append(f"  Description: {trigger['description']}")
         
+        logger.info(f"Triggers with meaningful IDs: {meaningful_ids}/{total_triggers}")
+        
+        if not formatted:
+            # Fallback: show some basic trigger examples from popular toolkits
+            fallback_triggers = [
+                "- trigger_id: NEW_EMAIL (toolkit_slug: gmail) — New Email Received",
+                "- trigger_id: NEW_MESSAGE (toolkit_slug: slack) — New Message",
+                "- trigger_id: NEW_ISSUE (toolkit_slug: github) — New Issue Created",
+                "- trigger_id: NEW_TASK (toolkit_slug: linear) — New Task Created",
+                "- trigger_id: NEW_PAGE (toolkit_slug: notion) — New Page Created"
+            ]
+            logger.warning(f"No valid triggers found in catalog, using fallback examples")
+            return "\n".join(fallback_triggers)
+        
+        logger.debug(f"Formatted {len(formatted)} valid triggers")
         return "\n".join(formatted)
     
     def _format_actions_for_prompt(self, actions: List[Dict[str, Any]]) -> str:
@@ -231,10 +297,15 @@ class PromptBuilder:
         
         # Debug: log first few actions to see structure
         logger.debug(f"Formatting {len(actions)} actions")
-        for i, action in enumerate(actions[:3]):
-            logger.debug(f"Action {i}: keys={list(action.keys())}, action_name={action.get('action_name')}, name={action.get('name')}, id={action.get('id')}")
+        if actions:
+            logger.debug(f"First action data: {actions[0]}")
+            for i, action in enumerate(actions[:3]):
+                logger.debug(f"Action {i}: keys={list(action.keys())}, action_name={action.get('action_name')}, name={action.get('name')}, id={action.get('id')}, slug={action.get('slug')}")
         
         formatted = []
+        meaningful_slugs = 0
+        total_actions = len(actions[:20])  # Limit to first 20
+        
         for action in actions[:20]:  # Limit to first 20
             # Try different possible field names for action identifier
             action_slug = (
@@ -249,6 +320,7 @@ class PromptBuilder:
             
             # Only include actions that have a valid identifier
             if action_slug and action_slug != 'unknown_action':
+                meaningful_slugs += 1
                 formatted.append(f"- action_name: {action_slug} (toolkit_slug: {toolkit_slug}) — {name}")
                 if action.get('description'):
                     formatted.append(f"  Description: {action['description']}")
@@ -257,6 +329,8 @@ class PromptBuilder:
                     required_params = [p.get('name') for p in action['parameters'] if p.get('required')]
                     if required_params:
                         formatted.append(f"  Required inputs: {', '.join(required_params)}")
+        
+        logger.info(f"Actions with meaningful slugs: {meaningful_slugs}/{total_actions}")
         
         if not formatted:
             # Fallback: show some basic action examples from popular toolkits
