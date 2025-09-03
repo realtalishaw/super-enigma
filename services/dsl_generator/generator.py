@@ -62,7 +62,7 @@ class DSLGeneratorService:
         # Groq configuration for tool retrieval (from config)
         self.groq_api_key = settings.groq_api_key
         self.groq_base_url = "https://api.groq.com/openai/v1"
-        self.groq_model = "openai/gpt-oss-120b"  # Fast model for tool retrieval
+        self.groq_model = "llama-3.1-8b-instant"  # Current fast model for tool retrieval
         
         # Tool selection limits to keep context concise
         self.max_triggers = settings.max_triggers
@@ -249,10 +249,15 @@ class DSLGeneratorService:
             
             # Step 2: Use Groq LLM to analyze and select the best tools for the specific task
             if self.groq_api_key and not request.selected_apps:
+                # Use semantic search results for Groq analysis when no specific apps are selected
                 logger.info("Using Groq LLM to analyze and select best tools from semantic results")
                 pruned_context = await self._groq_analyze_semantic_results(request.user_prompt, semantic_context)
+            elif self.groq_api_key and request.selected_apps:
+                # Use original Groq approach when specific apps are selected
+                logger.info("Using original Groq approach for selected apps")
+                pruned_context = await self._groq_analyze_selected_apps(request.user_prompt, request.selected_apps)
             else:
-                logger.info("Skipping Groq analysis (no API key or selected apps provided)")
+                logger.info("Skipping Groq analysis (no API key available)")
                 pruned_context = semantic_context
             
             # Apply tool limits to keep context concise
@@ -576,6 +581,241 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
         logger.info(f"Filtered context: {len(filtered_triggers)} triggers, {len(filtered_actions)} actions")
         
         return refined_context
+    
+    async def _build_groq_tool_selection_prompt(self, user_prompt: str, available_toolkits: list[dict]) -> str:
+        """
+        Builds a sophisticated prompt for Groq to pre-plan the workflow by selecting
+        the exact trigger and action slugs.
+        """
+        
+        # --- IMPROVEMENT: Format the full tool list for the LLM ---
+        # This gives the LLM the necessary context to choose specific, valid tools.
+        tool_context_str = ""
+        
+        # Get the full catalog data
+        catalog_data = await self.catalog_manager.get_catalog_data()
+        
+        for toolkit in available_toolkits:
+            tool_context_str += f"\n- Toolkit: {toolkit['slug']}\n"
+            tool_context_str += f"  Description: {toolkit['description']}\n"
+            
+            # Get triggers and actions for this toolkit from the catalog data
+            toolkit_slug = toolkit['slug']
+            toolkit_data = catalog_data.get(toolkit_slug, {})
+            
+            # Get triggers and actions directly from the toolkit data
+            triggers = toolkit_data.get('triggers', [])
+            actions = toolkit_data.get('actions', [])
+            
+            if triggers:
+                tool_context_str += "  Triggers:\n"
+                for t in triggers:
+                    slug = t.get('slug') or t.get('name')
+                    desc = t.get('description', 'No description.')
+                    tool_context_str += f"    - slug: \"{slug}\", description: \"{desc}\"\n"
+            
+            if actions:
+                tool_context_str += "  Actions:\n"
+                for a in actions:
+                    slug = a.get('slug') or a.get('name')
+                    desc = a.get('description', 'No description.')
+                    tool_context_str += f"    - slug: \"{slug}\", description: \"{desc}\"\n"
+
+        prompt = f"""You are an expert workflow architect. Your job is to analyze a user's request and design a logical sequence of operations by selecting ONE trigger and one or more actions from a comprehensive catalog of available tools.
+
+<user_request>
+{user_prompt}
+</user_request>
+
+<available_tools>
+{tool_context_str}
+</available_tools>
+
+**IMPORTANT: Understanding Trigger Types**
+There are two kinds of trigger available:
+
+1. **event_based**: These are triggers from the <available_tools> list (e.g.; "SALESFORCE_NEW_LEAD_TRIGGER"). Use one of these when the user wants to start a workflow based on an event in a specific application.
+2. **schedule_based**" This is a generic trigger for time-based workflows. You MUST use the exact slug "SCHEDULE_BASED" for the `trigger_slug` if the user's request mentions a schedule, like "every morning", "at 8 PM", "on Fridays", "weekly", or any other time-based interval.
+
+**Your Task:**
+1.  **Reasoning:** First, think step-by-step about how to accomplish the user's goal with the available tools.
+2.  **Tool Selection:** Based on your reasoning, select exactly ONE trigger and a sequence of one or more actions.
+3.  **JSON Output:** Your response MUST be a JSON object with three keys: "reasoning", "trigger_slug", and "action_slugs".
+
+**Rules for Tool Selection:**
+- If the request is time-based, you MUST use "SCHEDULE_BASED" as the `trigger_slug`.
+- For `event_based` triggers, the slug in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
+- Action slugs in your response MUST be an EXACT match to a slug from the **Actions** section of `<available_tools>`.
+- ⚠️  CRITICAL: NEVER use a trigger slug as an action slug or vice versa. Triggers and actions are completely separate.
+- If a suitable workflow cannot be built, return `null` for `trigger_slug` and an empty list for `action_slugs`.
+
+**Example 1 (Event-Based):**
+<user_request>
+When I get a new lead in Salesforce, add them to a Google Sheet and send a celebration message in Slack.
+</user_request>
+
+**Expected JSON Response:**
+{{
+    "reasoning": "The workflow starts with an event, when a new lead is created in Salesforce. Then, it adds a new row to a Google Sheet. Finally, it posts a message to a Slack channel.",
+    "trigger_slug": "SALESFORCE_NEW_LEAD_TRIGGER",
+    "action_slugs": ["GOOGLESHEETS_CREATE_SPREADSHEET_ROW", "SLACK_SEND_MESSAGE"]
+}}
+
+**Example 2 (Schedule-Based):**
+<user_request>
+Every Friday, get the total number of new customers from Stripe and post it to the #weekly-summary Slack channel.
+</user_request>
+
+**Expected JSON Response:**
+{{
+    "reasoning": "The workflow needs to run on a schedule, specifically every Friday. Therefore, a schedule-based trigger is required. The first action is to list customers from Stripe to get the data. The second action is to post the summarized data to a Slack channel.",
+    "trigger_slug": "SCHEDULE_BASED",
+    "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_POST_MESSAGE"]
+}}
+
+Now, analyze the user request provided at the top and generate the JSON response."""
+        
+        return prompt
+    
+    async def _groq_analyze_selected_apps(self, user_prompt: str, selected_apps: List[str]) -> Dict[str, Any]:
+        """
+        Use the original Groq approach for selected apps - builds toolkit context and gets exact tool selection.
+        """
+        try:
+            # Prepare available toolkits for the selected apps
+            available_toolkits = []
+            catalog_data = await self.catalog_manager.get_catalog_data()
+            
+            for app_slug in selected_apps:
+                if app_slug in catalog_data:
+                    toolkit_data = catalog_data[app_slug]
+                    available_toolkits.append({
+                        'slug': app_slug,
+                        'description': toolkit_data.get('description', '')
+                    })
+            
+            if not available_toolkits:
+                logger.warning("No toolkits found for selected apps")
+                return {'triggers': [], 'actions': [], 'providers': {}}
+            
+            # Build the original Groq prompt
+            groq_prompt = await self._build_groq_tool_selection_prompt(user_prompt, available_toolkits)
+            
+            # Call Groq API
+            logger.info(f"Calling Groq API to analyze {len(available_toolkits)} selected toolkits...")
+            response = await self._call_groq_api(groq_prompt)
+            
+            if not response:
+                logger.warning("Groq API call failed, returning empty context")
+                return {'triggers': [], 'actions': [], 'providers': {}}
+            
+            # Parse Groq response to get exact tool selection
+            tool_selection = self._parse_groq_tool_selection_response(response)
+            
+            if not tool_selection:
+                logger.warning("Failed to parse Groq tool selection, returning empty context")
+                return {'triggers': [], 'actions': [], 'providers': {}}
+            
+            # Convert tool selection to catalog format
+            catalog_context = self._convert_tool_selection_to_catalog(tool_selection, catalog_data)
+            
+            logger.info(f"Groq selected: {tool_selection.get('trigger_slug', 'None')} trigger, {len(tool_selection.get('action_slugs', []))} actions")
+            
+            return catalog_context
+            
+        except Exception as e:
+            logger.error(f"Groq selected apps analysis failed: {e}")
+            return {'triggers': [], 'actions': [], 'providers': {}}
+    
+    def _parse_groq_tool_selection_response(self, response: str) -> Optional[Dict[str, Any]]:
+        """Parse the original Groq tool selection response."""
+        try:
+            import json
+            import re
+            
+            # Try to extract JSON from the response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if not json_match:
+                logger.error("No JSON found in Groq tool selection response")
+                return None
+            
+            json_str = json_match.group(0)
+            data = json.loads(json_str)
+            
+            return {
+                'reasoning': data.get('reasoning', ''),
+                'trigger_slug': data.get('trigger_slug'),
+                'action_slugs': data.get('action_slugs', [])
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to parse Groq tool selection response: {e}")
+            return None
+    
+    def _convert_tool_selection_to_catalog(self, tool_selection: Dict[str, Any], catalog_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Groq tool selection to catalog format."""
+        catalog_context = {
+            'triggers': [],
+            'actions': [],
+            'providers': {}
+        }
+        
+        # Find and add the selected trigger
+        trigger_slug = tool_selection.get('trigger_slug')
+        if trigger_slug and trigger_slug != 'SCHEDULE_BASED':
+            # Find the trigger in the catalog
+            for provider_slug, provider_data in catalog_data.items():
+                triggers = provider_data.get('triggers', [])
+                for trigger in triggers:
+                    if trigger.get('slug') == trigger_slug:
+                        catalog_context['triggers'].append({
+                            'slug': trigger.get('slug', ''),
+                            'name': trigger.get('name', ''),
+                            'description': trigger.get('description', ''),
+                            'toolkit_slug': provider_slug,
+                            'toolkit_name': provider_data.get('name', ''),
+                            'trigger_slug': trigger.get('slug', ''),
+                            'metadata': trigger
+                        })
+                        
+                        # Add provider info
+                        catalog_context['providers'][provider_slug] = {
+                            'name': provider_data.get('name', ''),
+                            'description': provider_data.get('description', ''),
+                            'category': provider_data.get('category', '')
+                        }
+                        break
+        
+        # Find and add the selected actions
+        action_slugs = tool_selection.get('action_slugs', [])
+        for action_slug in action_slugs:
+            # Find the action in the catalog
+            for provider_slug, provider_data in catalog_data.items():
+                actions = provider_data.get('actions', [])
+                for action in actions:
+                    if action.get('slug') == action_slug:
+                        catalog_context['actions'].append({
+                            'slug': action.get('slug', ''),
+                            'name': action.get('name', ''),
+                            'description': action.get('description', ''),
+                            'toolkit_slug': provider_slug,
+                            'toolkit_name': provider_data.get('name', ''),
+                            'action_slug': action.get('slug', ''),
+                            'metadata': action
+                        })
+                        
+                        # Add provider info if not already present
+                        if provider_slug not in catalog_context['providers']:
+                            catalog_context['providers'][provider_slug] = {
+                                'name': provider_data.get('name', ''),
+                                'description': provider_data.get('description', ''),
+                                'category': provider_data.get('category', '')
+                            }
+                        break
+        
+        logger.info(f"Converted tool selection to {len(catalog_context['triggers'])} triggers and {len(catalog_context['actions'])} actions")
+        
+        return catalog_context
     
     async def _fallback_basic_search_from_catalog(self, request: GenerationRequest) -> Optional[Dict[str, Any]]:
         """
