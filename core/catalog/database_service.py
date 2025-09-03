@@ -2,10 +2,9 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text, select, and_, or_
-from sqlalchemy.sql import func
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import ASCENDING, DESCENDING
+from bson import ObjectId
 
 from .models import Provider, ProviderMetadata, ActionSpec, TriggerSpec, ParamSpec, ParamType
 from .cache import RedisCacheStore
@@ -15,27 +14,72 @@ logger = logging.getLogger(__name__)
 
 class DatabaseCatalogService:
     """
-    Database-first catalog service that uses your existing database schema.
+    MongoDB-first catalog service that uses your existing database schema.
     Redis is used as a performance cache layer, not for data storage.
     """
     
     def __init__(self, database_url: str, redis_cache: RedisCacheStore):
         self.database_url = database_url
         self.redis_cache = redis_cache
-        self.engine = None
-        self.session_factory = None
+        self.client: Optional[AsyncIOMotorClient] = None
+        self.database: Optional[AsyncIOMotorDatabase] = None
         self.cache_ttl = 3600  # 1 hour cache TTL
         self.stale_threshold = timedelta(hours=24)  # 24 hours stale threshold
         
-    async def _ensure_engine(self):
-        """Ensure database engine is initialized"""
-        if self.engine is None:
-            # Convert PostgreSQL URL to async version
-            async_url = self.database_url.replace('postgresql://', 'postgresql+asyncpg://')
-            self.engine = create_async_engine(async_url, echo=False)
-            self.session_factory = sessionmaker(
-                self.engine, class_=AsyncSession, expire_on_commit=False
-            )
+    async def _ensure_client(self):
+        """Ensure MongoDB client is initialized"""
+        if self.client is None:
+            self.client = AsyncIOMotorClient(self.database_url)
+            self.database = self.client.get_database()
+            
+            # Try to create indexes for better performance (optional)
+            try:
+                await self._create_indexes()
+            except Exception as e:
+                logger.warning(f"Index creation failed (continuing without indexes): {e}")
+    
+    async def _create_indexes(self):
+        """Create MongoDB indexes for better performance"""
+        try:
+            # Check if indexes already exist before creating them
+            existing_indexes = await self.database.toolkits.list_indexes().to_list(length=None)
+            index_names = [idx['name'] for idx in existing_indexes]
+            
+            # Only create indexes if they don't already exist
+            if "slug_1" not in index_names:
+                await self.database.toolkits.create_index([("slug", ASCENDING)], unique=True)
+            if "category_1" not in index_names:
+                await self.database.toolkits.create_index([("category", ASCENDING)])
+            if "last_synced_at_1" not in index_names:
+                await self.database.toolkits.create_index([("last_synced_at", ASCENDING)])
+            if "is_deprecated_1" not in index_names:
+                await self.database.toolkits.create_index([("is_deprecated", ASCENDING)])
+            
+            # Check tools collection indexes
+            existing_tools_indexes = await self.database.tools.list_indexes().to_list(length=None)
+            tools_index_names = [idx['name'] for idx in existing_tools_indexes]
+            
+            if "toolkit_id_1" not in tools_index_names:
+                await self.database.tools.create_index([("toolkit_id", ASCENDING)])
+            if "slug_1" not in tools_index_names:
+                await self.database.tools.create_index([("slug", ASCENDING)])
+            if "tool_type_1" not in tools_index_names:
+                await self.database.tools.create_index([("tool_type", ASCENDING)])
+            if "is_deprecated_1" not in tools_index_names:
+                await self.database.tools.create_index([("is_deprecated", ASCENDING)])
+            
+            # Check categories collection indexes
+            existing_cat_indexes = await self.database.toolkit_categories.list_indexes().to_list(length=None)
+            cat_index_names = [idx['name'] for idx in existing_cat_indexes]
+            
+            if "name_1" not in cat_index_names:
+                await self.database.toolkit_categories.create_index([("name", ASCENDING)], unique=True)
+            if "sort_order_1" not in cat_index_names:
+                await self.database.toolkit_categories.create_index([("sort_order", ASCENDING)])
+            
+            logger.info("MongoDB indexes checked/created successfully")
+        except Exception as e:
+            logger.warning(f"Failed to create some indexes (this is usually fine if they already exist): {e}")
     
     async def get_catalog(
         self,
@@ -49,7 +93,7 @@ class DatabaseCatalogService:
         use_sdk: bool = False
     ) -> Dict[str, Any]:
         """
-        Get catalog data from database with Redis caching.
+        Get catalog data from MongoDB with Redis caching.
         
         Args:
             force_refresh: Force refresh from MCP/SDK and update database
@@ -73,8 +117,8 @@ class DatabaseCatalogService:
                 "cached_at": datetime.now(timezone.utc)
             }
         
-        # Get data from database (primary source)
-        logger.info("Fetching data from database")
+        # Get data from MongoDB (primary source)
+        logger.info("Fetching data from MongoDB")
         db_providers = await self._get_providers_from_database(
             providers, categories, tags, has_actions, has_triggers
         )
@@ -97,7 +141,7 @@ class DatabaseCatalogService:
         
         return {
             "providers": db_providers,
-            "source": "database",
+            "source": "mongodb",
             "cached_at": datetime.now(timezone.utc),
             "stale_toolkits_count": len(stale_toolkits) if stale_toolkits else 0
         }
@@ -109,7 +153,7 @@ class DatabaseCatalogService:
         use_mcp: bool = False,
         use_sdk: bool = False
     ) -> Optional[Dict[str, Any]]:
-        """Get specific provider from database with caching"""
+        """Get specific provider from MongoDB with caching"""
         # If explicitly requesting MCP/SDK, bypass everything
         if use_mcp or use_sdk:
             return await self._fetch_provider_from_external(provider_id, use_mcp, use_sdk)
@@ -121,7 +165,7 @@ class DatabaseCatalogService:
         if cached_provider and not force_refresh:
             return cached_provider
         
-        # Get from database
+        # Get from MongoDB
         provider = await self._get_provider_from_database(provider_id)
         
         if provider:
@@ -136,7 +180,7 @@ class DatabaseCatalogService:
         limit: int = 50,
         force_refresh: bool = False
     ) -> List[Dict[str, Any]]:
-        """Search providers in database"""
+        """Search providers in MongoDB"""
         if not query.strip():
             return []
         
@@ -147,7 +191,7 @@ class DatabaseCatalogService:
         if cached_results and not force_refresh:
             return cached_results
         
-        # Search in database
+        # Search in MongoDB
         results = await self._search_providers_in_database(query, limit)
         
         # Cache results
@@ -157,33 +201,40 @@ class DatabaseCatalogService:
         return results
     
     async def get_categories(self) -> List[str]:
-        """Get categories from database"""
-        await self._ensure_engine()
+        """Get categories from MongoDB"""
+        await self._ensure_client()
         
-        async with self.session_factory() as session:
-            result = await session.execute(
-                text("SELECT name FROM toolkit_categories ORDER BY sort_order, name")
-            )
-            categories = [row[0] for row in result.fetchall()]
+        try:
+            cursor = self.database.toolkit_categories.find(
+                {}, 
+                {"name": 1, "sort_order": 1}
+            ).sort([("sort_order", ASCENDING), ("name", ASCENDING)])
+            
+            categories = []
+            async for doc in cursor:
+                categories.append(doc["name"])
+            
             return categories
+        except Exception as e:
+            logger.error(f"Error getting categories: {e}")
+            return []
     
     async def get_tags(self) -> List[str]:
-        """Get tags from database (could be extracted from descriptions or other fields)"""
+        """Get tags from MongoDB (could be extracted from descriptions or other fields)"""
         # For now, return empty list since tags aren't explicitly stored
-        # Could be enhanced to extract tags from descriptions or add a tags table
+        # Could be enhanced to extract tags from descriptions or add a tags collection
         return []
     
     async def health_check(self) -> bool:
-        """Check database and Redis health"""
+        """Check MongoDB and Redis health"""
         try:
             # Check Redis
             redis_healthy = await self.redis_cache.health_check()
             
-            # Check database
-            await self._ensure_engine()
-            async with self.session_factory() as session:
-                await session.execute(text("SELECT 1"))
-                db_healthy = True
+            # Check MongoDB
+            await self._ensure_client()
+            await self.client.admin.command('ping')
+            db_healthy = True
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             db_healthy = False
@@ -191,38 +242,37 @@ class DatabaseCatalogService:
         return redis_healthy and db_healthy
     
     async def get_database_stats(self) -> Dict[str, Any]:
-        """Get database statistics"""
-        await self._ensure_engine()
+        """Get MongoDB statistics"""
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Get toolkit count
-                toolkit_result = await session.execute(text("SELECT COUNT(*) FROM toolkits"))
-                toolkit_count = toolkit_result.scalar()
-                
-                # Get tool count
-                tool_result = await session.execute(text("SELECT COUNT(*) FROM tools"))
-                tool_count = tool_result.scalar()
-                
-                # Get stale toolkit count
-                stale_result = await session.execute(
-                    text("SELECT COUNT(*) FROM toolkits WHERE last_synced_at < NOW() - INTERVAL '24 hours'")
-                )
-                stale_count = stale_result.scalar()
-                
-                # Get last sync info
-                last_sync_result = await session.execute(
-                    text("SELECT MAX(last_synced_at) FROM toolkits")
-                )
-                last_sync = last_sync_result.scalar()
-                
-                return {
-                    "toolkit_count": toolkit_count,
-                    "tool_count": tool_count,
-                    "stale_toolkit_count": stale_count,
-                    "last_sync": last_sync.isoformat() if last_sync else None,
-                    "stale_threshold_hours": 24
-                }
+            # Get toolkit count
+            toolkit_count = await self.database.toolkits.count_documents({"is_deprecated": False})
+            
+            # Get tool count
+            tool_count = await self.database.tools.count_documents({"is_deprecated": False})
+            
+            # Get stale toolkit count
+            stale_threshold = datetime.now(timezone.utc) - self.stale_threshold
+            stale_count = await self.database.toolkits.count_documents({
+                "last_synced_at": {"$lt": stale_threshold},
+                "is_deprecated": False
+            })
+            
+            # Get last sync info
+            last_sync_doc = await self.database.toolkits.find_one(
+                {"is_deprecated": False},
+                sort=[("last_synced_at", DESCENDING)]
+            )
+            last_sync = last_sync_doc.get("last_synced_at") if last_sync_doc else None
+            
+            return {
+                "toolkit_count": toolkit_count,
+                "tool_count": tool_count,
+                "stale_toolkit_count": stale_count,
+                "last_sync": last_sync.isoformat() if last_sync else None,
+                "stale_threshold_hours": 24
+            }
         except Exception as e:
             logger.error(f"Failed to get database stats: {e}")
             return {"error": str(e)}
@@ -235,98 +285,67 @@ class DatabaseCatalogService:
         has_actions: Optional[bool] = None,
         has_triggers: Optional[bool] = None
     ) -> List[Dict[str, Any]]:
-        """Get providers from database with filtering"""
-        await self._ensure_engine()
+        """Get providers from MongoDB with filtering"""
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Build base query
-                query = text("""
-                    SELECT 
-                        t.toolkit_id,
-                        t.slug,
-                        t.name,
-                        t.description,
-                        t.website_url,
-                        t.category,
-                        t.version,
-                        t.created_at,
-                        t.updated_at,
-                        t.last_synced_at,
-                        COUNT(DISTINCT tools.tool_id) as tool_count,
-                        COUNT(DISTINCT CASE WHEN tools.tool_type = 'action' THEN tools.tool_id END) as action_count,
-                        COUNT(DISTINCT CASE WHEN tools.tool_type = 'trigger' THEN tools.tool_id END) as trigger_count
-                    FROM toolkits t
-                    LEFT JOIN tools ON t.toolkit_id = tools.toolkit_id
-                    WHERE t.is_deprecated = FALSE
-                """)
+            # Build filter
+            filter_query = {"is_deprecated": False}
+            
+            if providers:
+                filter_query["slug"] = {"$in": providers}
+            
+            if categories:
+                filter_query["category"] = {"$in": categories}
+            
+            # Get toolkits
+            cursor = self.database.toolkits.find(filter_query)
+            toolkit_docs = await cursor.to_list(length=None)
+            
+            providers_data = []
+            for toolkit_doc in toolkit_docs:
+                # Get tools for this toolkit
+                tools = await self._get_tools_for_provider(str(toolkit_doc["_id"]))
                 
-                # Add filters
-                params = {}
-                conditions = []
+                # Count tools by type
+                action_count = len([t for t in tools if t.get("tool_type") == "action"])
+                trigger_count = len([t for t in tools if t.get("tool_type") == "trigger"])
                 
-                if providers:
-                    placeholders = ','.join([f':provider_{i}' for i in range(len(providers))])
-                    conditions.append(f"t.slug IN ({placeholders})")
-                    for i, provider in enumerate(providers):
-                        params[f'provider_{i}'] = provider
+                provider = {
+                    "id": str(toolkit_doc["_id"]),
+                    "slug": toolkit_doc["slug"],
+                    "name": toolkit_doc["name"],
+                    "description": toolkit_doc.get("description", ""),
+                    "website": toolkit_doc.get("website_url", ""),
+                    "category": toolkit_doc.get("category", ""),
+                    "version": toolkit_doc.get("version", "1.0.0"),
+                    "created_at": toolkit_doc.get("created_at"),
+                    "updated_at": toolkit_doc.get("updated_at"),
+                    "last_synced_at": toolkit_doc.get("last_synced_at"),
+                    "tool_count": len(tools),
+                    "action_count": action_count,
+                    "trigger_count": trigger_count,
+                    "has_actions": action_count > 0,
+                    "has_triggers": trigger_count > 0,
+                    "tools": tools,
+                    "triggers": [t for t in tools if t.get("tool_type") == "trigger"],
+                    "actions": [t for t in tools if t.get("tool_type") == "action"]
+                }
                 
-                if categories:
-                    placeholders = ','.join([f':category_{i}' for i in range(len(categories))])
-                    conditions.append(f"t.category IN ({placeholders})")
-                    for i, category in enumerate(categories):
-                        params[f'category_{i}'] = category
+                # Apply additional filters
+                if has_actions is not None and provider["has_actions"] != has_actions:
+                    continue
+                if has_triggers is not None and provider["has_triggers"] != has_triggers:
+                    continue
                 
-                if conditions:
-                    query = text(str(query) + " AND " + " AND ".join(conditions))
-                
-                query = text(str(query) + " GROUP BY t.toolkit_id, t.slug, t.name, t.description, t.website_url, t.category, t.version, t.created_at, t.updated_at, t.last_synced_at ORDER BY t.name")
-                
-                result = await session.execute(query, params)
-                rows = result.fetchall()
-                
-                providers_data = []
-                for row in rows:
-                    provider = {
-                        "id": row.toolkit_id,
-                        "slug": row.slug,
-                        "name": row.name,
-                        "description": row.description,
-                        "website": row.website_url,
-                        "category": row.category,
-                        "version": row.version,
-                        "created_at": row.created_at,
-                        "updated_at": row.updated_at,
-                        "last_synced_at": row.last_synced_at,
-                        "tool_count": row.tool_count,
-                        "action_count": row.action_count,
-                        "trigger_count": row.trigger_count,
-                        "has_actions": row.action_count > 0,
-                        "has_triggers": row.trigger_count > 0
-                    }
-                    
-                    # Apply additional filters
-                    if has_actions is not None and provider["has_actions"] != has_actions:
-                        continue
-                    if has_triggers is not None and provider["has_triggers"] != has_triggers:
-                        continue
-                    
-                    providers_data.append(provider)
-                
-                # Convert list to dictionary with slug as key
-                providers_dict = {}
-                for provider in providers_data:
-                    # Get the actual tools for this provider
-                    tools = await self._get_tools_for_provider(provider["id"])
-                    
-                    # Add tools to provider data
-                    provider["tools"] = tools
-                    provider["triggers"] = [t for t in tools if t.get("tool_type") == "trigger"]
-                    provider["actions"] = [t for t in tools if t.get("tool_type") == "action"]
-                    
-                    providers_dict[provider["slug"]] = provider
-                
-                return providers_dict
+                providers_data.append(provider)
+            
+            # Convert list to dictionary with slug as key
+            providers_dict = {}
+            for provider in providers_data:
+                providers_dict[provider["slug"]] = provider
+            
+            return providers_dict
                 
         except Exception as e:
             logger.error(f"Error getting providers from database: {e}")
@@ -334,162 +353,100 @@ class DatabaseCatalogService:
     
     async def _get_tools_for_provider(self, provider_id: str) -> List[Dict[str, Any]]:
         """Get tools for a specific provider"""
-        await self._ensure_engine()
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                tools_query = text("""
-                    SELECT 
-                        tool_id, slug, name, display_name, description, tool_type, version,
-                        input_schema, output_schema, tags
-                    FROM tools 
-                    WHERE toolkit_id = :toolkit_id AND is_deprecated = FALSE
-                    ORDER BY name
-                """)
-                
-                result = await session.execute(tools_query, {"toolkit_id": provider_id})
-                tools = []
-                
-                for row in result.fetchall():
-                    tool = {
-                        "id": row.tool_id,
-                        "slug": row.slug,
-                        "name": row.name,
-                        "display_name": row.display_name,
-                        "description": row.description,
-                        "tool_type": row.tool_type,
-                        "version": row.version,
-                        "input_schema": row.input_schema,
-                        "output_schema": row.output_schema,
-                        "tags": row.tags
-                    }
-                    tools.append(tool)
-                
-                return tools
+            cursor = self.database.tools.find({
+                "toolkit_id": provider_id,
+                "is_deprecated": False
+            }).sort("name", ASCENDING)
+            
+            tools = []
+            async for doc in cursor:
+                tool = {
+                    "id": str(doc["_id"]),
+                    "slug": doc["slug"],
+                    "name": doc["name"],
+                    "display_name": doc.get("display_name", doc["name"]),
+                    "description": doc.get("description", ""),
+                    "tool_type": doc["tool_type"],
+                    "version": doc.get("version", "1.0.0"),
+                    "input_schema": doc.get("input_schema", {}),
+                    "output_schema": doc.get("output_schema", {}),
+                    "tags": doc.get("tags", [])
+                }
+                tools.append(tool)
+            
+            return tools
                 
         except Exception as e:
             logger.error(f"Error getting tools for provider {provider_id}: {e}")
             return []
     
     async def _get_provider_from_database(self, provider_id: str) -> Optional[Dict[str, Any]]:
-        """Get specific provider from database"""
-        await self._ensure_engine()
+        """Get specific provider from MongoDB"""
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Get toolkit info
-                toolkit_query = text("""
-                    SELECT 
-                        toolkit_id, name, description, website_url, category, 
-                        version, created_at, updated_at, last_synced_at
-                    FROM toolkits 
-                    WHERE toolkit_id = :toolkit_id AND is_deprecated = FALSE
-                """)
-                
-                toolkit_result = await session.execute(toolkit_query, {"toolkit_id": provider_id})
-                toolkit_row = toolkit_result.fetchone()
-                
-                if not toolkit_row:
-                    return None
-                
-                # Get tools for this toolkit
-                tools_query = text("""
-                    SELECT 
-                        t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
-                        p.name as param_name, p.name as param_display, p.description as param_description,
-                        p.param_type, p.is_required, p.default_value, p.validation_rules
-                    FROM tools t
-                    LEFT JOIN tool_parameters p ON t.tool_id = p.tool_id
-                    WHERE t.toolkit_id = :toolkit_id AND t.is_deprecated = FALSE
-                    ORDER BY t.name, p.sort_order
-                """)
-                
-                tools_result = await session.execute(tools_query, {"toolkit_id": provider_id})
-                tools_data = {}
-                
-                for row in tools_result.fetchall():
-                    tool_name = row.name
-                    if tool_name not in tools_data:
-                        tools_data[tool_name] = {
-                            "slug": row.slug,
-                            "name": tool_name,
-                            "display_name": row.display_name,
-                            "description": row.description,
-                            "tool_type": row.tool_type,
-                            "version": row.version,
-                            "parameters": []
-                        }
-                    
-                    if row.param_name:  # Has parameters
-                        param = {
-                            "name": row.param_name,
-                            "display_name": row.param_display,
-                            "description": row.param_description,
-                            "type": row.param_type,
-                            "required": row.is_required,
-                            "default": row.default_value,
-                            "validation": row.validation_rules
-                        }
-                        tools_data[tool_name]["parameters"].append(param)
-                
-                # Convert to provider format
-                provider = {
-                    "id": toolkit_row.toolkit_id,
-                    "name": toolkit_row.name,
-                    "description": toolkit_row.description,
-                    "website": toolkit_row.website_url,
-                    "category": toolkit_row.category_id,
-                    "version": toolkit_row.version,
-                    "created_at": toolkit_row.created_at,
-                    "updated_at": toolkit_row.updated_at,
-                    "last_synced_at": toolkit_row.last_synced_at,
-                    "tools": list(tools_data.values())
-                }
-                
-                return provider
+            # Get toolkit info
+            toolkit_doc = await self.database.toolkits.find_one({
+                "_id": ObjectId(provider_id) if ObjectId.is_valid(provider_id) else provider_id,
+                "is_deprecated": False
+            })
+            
+            if not toolkit_doc:
+                return None
+            
+            # Get tools for this toolkit
+            tools = await self._get_tools_for_provider(str(toolkit_doc["_id"]))
+            
+            # Convert to provider format
+            provider = {
+                "id": str(toolkit_doc["_id"]),
+                "name": toolkit_doc["name"],
+                "description": toolkit_doc.get("description", ""),
+                "website": toolkit_doc.get("website_url", ""),
+                "category": toolkit_doc.get("category", ""),
+                "version": toolkit_doc.get("version", "1.0.0"),
+                "created_at": toolkit_doc.get("created_at"),
+                "updated_at": toolkit_doc.get("updated_at"),
+                "last_synced_at": toolkit_doc.get("last_synced_at"),
+                "tools": tools
+            }
+            
+            return provider
                 
         except Exception as e:
             logger.error(f"Error getting provider {provider_id} from database: {e}")
             return None
     
     async def _search_providers_in_database(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Search providers in database"""
-        await self._ensure_engine()
+        """Search providers in MongoDB"""
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                search_query = text("""
-                    SELECT DISTINCT
-                        t.toolkit_id, t.name, t.description, t.category
-                    FROM toolkits t
-                    LEFT JOIN tools tools ON t.toolkit_id = tools.toolkit_id
-                    WHERE t.is_deprecated = FALSE
-                    AND (
-                        t.name ILIKE :query OR 
-                        t.description ILIKE :query OR
-                        t.category ILIKE :query OR
-                        tools.name ILIKE :query OR
-                        tools.description ILIKE :query
-                    )
-                    ORDER BY t.name
-                    LIMIT :limit
-                """)
-                
-                result = await session.execute(search_query, {
-                    "query": f"%{query}%",
-                    "limit": limit
-                })
-                
-                rows = result.fetchall()
-                return [
-                    {
-                        "id": row.toolkit_id,
-                        "name": row.name,
-                        "description": row.description,
-                        "category": row.category
-                    }
-                    for row in rows
+            # Create text search query
+            search_filter = {
+                "is_deprecated": False,
+                "$or": [
+                    {"name": {"$regex": query, "$options": "i"}},
+                    {"description": {"$regex": query, "$options": "i"}},
+                    {"category": {"$regex": query, "$options": "i"}}
                 ]
+            }
+            
+            cursor = self.database.toolkits.find(search_filter).limit(limit)
+            results = []
+            
+            async for doc in cursor:
+                results.append({
+                    "id": str(doc["_id"]),
+                    "name": doc["name"],
+                    "description": doc.get("description", ""),
+                    "category": doc.get("category", "")
+                })
+            
+            return results
                 
         except Exception as e:
             logger.error(f"Error searching providers in database: {e}")
@@ -497,21 +454,21 @@ class DatabaseCatalogService:
     
     async def _get_stale_toolkits(self) -> List[str]:
         """Get list of toolkits that are stale and need refresh"""
-        await self._ensure_engine()
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                stale_query = text("""
-                    SELECT toolkit_id 
-                    FROM toolkits 
-                    WHERE last_synced_at < NOW() - INTERVAL '24 hours'
-                    AND is_deprecated = FALSE
-                    ORDER BY last_synced_at ASC
-                """)
-                
-                result = await session.execute(stale_query)
-                stale_toolkits = [row[0] for row in result.fetchall()]
-                return stale_toolkits
+            stale_threshold = datetime.now(timezone.utc) - self.stale_threshold
+            
+            cursor = self.database.toolkits.find({
+                "last_synced_at": {"$lt": stale_threshold},
+                "is_deprecated": False
+            }).sort("last_synced_at", ASCENDING)
+            
+            stale_toolkits = []
+            async for doc in cursor:
+                stale_toolkits.append(str(doc["_id"]))
+            
+            return stale_toolkits
                 
         except Exception as e:
             logger.error(f"Error getting stale toolkits: {e}")
@@ -523,21 +480,23 @@ class DatabaseCatalogService:
         # For now, just update the last_synced_at timestamp
         logger.info(f"Refreshing {len(toolkit_ids)} stale toolkits from external sources")
         
-        await self._ensure_engine()
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                update_query = text("""
-                    UPDATE toolkits 
-                    SET last_synced_at = NOW() 
-                    WHERE toolkit_id = ANY(:toolkit_ids)
-                """)
+            # Convert string IDs to ObjectIds
+            object_ids = [ObjectId(tid) for tid in toolkit_ids if ObjectId.is_valid(tid)]
+            
+            if object_ids:
+                result = await self.database.toolkits.update_many(
+                    {"_id": {"$in": object_ids}},
+                    {"$set": {"last_synced_at": datetime.now(timezone.utc)}}
+                )
                 
-                await session.execute(update_query, {"toolkit_ids": toolkit_ids})
-                await session.commit()
-                
-                logger.info(f"Successfully updated last_synced_at for {len(toolkit_ids)} toolkits")
+                logger.info(f"Successfully updated last_synced_at for {result.modified_count} toolkits")
                 return True
+            else:
+                logger.warning("No valid ObjectIds found for stale toolkits")
+                return False
                 
         except Exception as e:
             logger.error(f"Error refreshing stale toolkits: {e}")
@@ -633,93 +592,38 @@ class DatabaseCatalogService:
         return provider
 
     async def _get_provider_from_database_by_slug(self, provider_slug: str) -> Optional[Dict[str, Any]]:
-        """Get specific provider from database by slug"""
-        await self._ensure_engine()
+        """Get specific provider from MongoDB by slug"""
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Get toolkit info by slug
-                toolkit_query = text("""
-                    SELECT 
-                        toolkit_id, slug, name, description, website_url, category, 
-                        version, created_at, updated_at, last_synced_at
-                    FROM toolkits 
-                    WHERE slug = :provider_slug AND is_deprecated = FALSE
-                """)
-                
-                toolkit_result = await session.execute(toolkit_query, {"provider_slug": provider_slug})
-                toolkit_row = toolkit_result.fetchone()
-                
-                if not toolkit_row:
-                    return None
-                
-                # Get tools for this toolkit using the correct schema
-                tools_query = text("""
-                    SELECT 
-                        tool_id, slug, name, display_name, description, tool_type, 
-                        is_deprecated, version, input_schema, output_schema, tags,
-                        created_at, updated_at
-                    FROM tools
-                    WHERE toolkit_id = :toolkit_id AND is_deprecated = FALSE
-                    ORDER BY name
-                """)
-                
-                tools_result = await session.execute(tools_query, {"toolkit_id": toolkit_row.toolkit_id})
-                tools_data = []
-                
-                for row in tools_result.fetchall():
-                    # Parse the input schema to extract parameters
-                    parameters = []
-                    if row.input_schema and isinstance(row.input_schema, dict):
-                        properties = row.input_schema.get('properties', {})
-                        required = row.input_schema.get('required', [])
-                        
-                        for param_name, param_spec in properties.items():
-                            if isinstance(param_spec, dict):
-                                param = {
-                                    "name": param_name,
-                                    "display_name": param_spec.get('title', param_name),
-                                    "description": param_spec.get('description', ''),
-                                    "type": param_spec.get('type', 'string'),
-                                    "required": param_name in required,
-                                    "default": param_spec.get('default'),
-                                    "validation": {
-                                        "examples": param_spec.get('examples', []),
-                                        "nullable": param_spec.get('nullable', False)
-                                    }
-                                }
-                                parameters.append(param)
-                    
-                    tool = {
-                        "slug": row.slug,
-                        "name": row.name,
-                        "display_name": row.display_name,
-                        "description": row.description,
-                        "tool_type": row.tool_type,
-                        "version": row.version,
-                        "parameters": parameters,
-                        "input_schema": row.input_schema,
-                        "output_schema": row.output_schema,
-                        "tags": row.tags or []
-                    }
-                    tools_data.append(tool)
-                
-                # Convert to provider format
-                provider = {
-                    "id": toolkit_row.toolkit_id,
-                    "slug": toolkit_row.slug,
-                    "name": toolkit_row.name,
-                    "description": toolkit_row.description,
-                    "website": toolkit_row.website_url,
-                    "category": toolkit_row.category,
-                    "version": toolkit_row.version,
-                    "created_at": toolkit_row.created_at,
-                    "updated_at": toolkit_row.updated_at,
-                    "last_synced_at": toolkit_row.last_synced_at,
-                    "tools": tools_data
-                }
-                
-                return provider
+            # Get toolkit info by slug
+            toolkit_doc = await self.database.toolkits.find_one({
+                "slug": provider_slug,
+                "is_deprecated": False
+            })
+            
+            if not toolkit_doc:
+                return None
+            
+            # Get tools for this toolkit
+            tools = await self._get_tools_for_provider(str(toolkit_doc["_id"]))
+            
+            # Convert to provider format
+            provider = {
+                "id": str(toolkit_doc["_id"]),
+                "slug": toolkit_doc["slug"],
+                "name": toolkit_doc["name"],
+                "description": toolkit_doc.get("description", ""),
+                "website": toolkit_doc.get("website_url", ""),
+                "category": toolkit_doc.get("category", ""),
+                "version": toolkit_doc.get("version", "1.0.0"),
+                "created_at": toolkit_doc.get("created_at"),
+                "updated_at": toolkit_doc.get("updated_at"),
+                "last_synced_at": toolkit_doc.get("last_synced_at"),
+                "tools": tools
+            }
+            
+            return provider
                 
         except Exception as e:
             logger.error(f"Error getting provider with slug '{provider_slug}' from database: {e}")
@@ -734,100 +638,95 @@ class DatabaseCatalogService:
             provider_slug: Optional provider slug to filter by
             force_refresh: Force refresh from external sources
         """
-        await self._ensure_engine()
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Build the query based on whether we're filtering by provider
-                if provider_slug:
-                    # Get tool from specific provider
-                    tool_query = text("""
-                        SELECT 
-                            t.tool_id, t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
-                            t.input_schema, t.output_schema, t.tags,
-                            tk.slug as provider_slug, tk.name as provider_name
-                        FROM tools t
-                        JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                        WHERE t.slug = :tool_slug 
-                          AND tk.slug = :provider_slug 
-                          AND t.is_deprecated = FALSE 
-                          AND tk.is_deprecated = FALSE
-                    """)
-                    params = {"tool_slug": tool_slug, "provider_slug": provider_slug}
-                else:
-                    # Get tool from any provider
-                    tool_query = text("""
-                        SELECT 
-                            t.tool_id, t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
-                            t.input_schema, t.output_schema, t.tags,
-                            tk.slug as provider_slug, tk.name as provider_name
-                        FROM tools t
-                        JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                        WHERE t.slug = :tool_slug 
-                          AND t.is_deprecated = FALSE 
-                          AND tk.is_deprecated = FALSE
-                        ORDER BY tk.slug
-                    """)
-                    params = {"tool_slug": tool_slug}
+            # Build the filter based on whether we're filtering by provider
+            if provider_slug:
+                # Get toolkit ID first
+                toolkit_doc = await self.database.toolkits.find_one({
+                    "slug": provider_slug,
+                    "is_deprecated": False
+                })
                 
-                tool_result = await session.execute(tool_query, params)
-                tool_rows = tool_result.fetchall()
-                
-                if not tool_rows:
+                if not toolkit_doc:
                     return None
                 
-                # Group by provider if not filtering by specific provider
+                # Get tool from specific provider
+                tool_doc = await self.database.tools.find_one({
+                    "slug": tool_slug,
+                    "toolkit_id": str(toolkit_doc["_id"]),
+                    "is_deprecated": False
+                })
+                
+                if not tool_doc:
+                    return None
+                
+                # Parse the input schema to extract parameters
+                parameters = self._parse_input_schema(tool_doc.get("input_schema", {}))
+                
+                tool_data = {
+                    "tool": {
+                        "slug": tool_doc["slug"],
+                        "name": tool_doc["name"],
+                        "display_name": tool_doc.get("display_name", tool_doc["name"]),
+                        "description": tool_doc.get("description", ""),
+                        "tool_type": tool_doc["tool_type"],
+                        "version": tool_doc.get("version", "1.0.0"),
+                        "parameters": parameters,
+                        "input_schema": tool_doc.get("input_schema", {}),
+                        "output_schema": tool_doc.get("output_schema", {}),
+                        "tags": tool_doc.get("tags", [])
+                    },
+                    "provider": {
+                        "slug": provider_slug,
+                        "name": toolkit_doc["name"]
+                    }
+                }
+                
+                return tool_data
+            else:
+                # Get tool from any provider
+                cursor = self.database.tools.find({
+                    "slug": tool_slug,
+                    "is_deprecated": False
+                })
+                
                 tools_by_provider = {}
                 
-                for row in tool_rows:
-                    provider_slug = row.provider_slug
-                    if provider_slug not in tools_by_provider:
+                async for tool_doc in cursor:
+                    # Get toolkit info
+                    toolkit_doc = await self.database.toolkits.find_one({
+                        "_id": ObjectId(tool_doc["toolkit_id"]),
+                        "is_deprecated": False
+                    })
+                    
+                    if toolkit_doc:
+                        provider_slug = toolkit_doc["slug"]
+                        
                         # Parse the input schema to extract parameters
-                        parameters = []
-                        if row.input_schema and isinstance(row.input_schema, dict):
-                            properties = row.input_schema.get('properties', {})
-                            required = row.input_schema.get('required', [])
-                            
-                            for param_name, param_spec in properties.items():
-                                if isinstance(param_spec, dict):
-                                    param = {
-                                        "name": param_name,
-                                        "display_name": param_spec.get('title', param_name),
-                                        "description": param_spec.get('description', ''),
-                                        "type": param_spec.get('type', 'string'),
-                                        "required": param_name in required,
-                                        "default": param_spec.get('default'),
-                                        "validation": {
-                                            "examples": param_spec.get('examples', []),
-                                            "nullable": param_spec.get('nullable', False)
-                                        }
-                                    }
-                                    parameters.append(param)
+                        parameters = self._parse_input_schema(tool_doc.get("input_schema", {}))
                         
                         tools_by_provider[provider_slug] = {
                             "tool": {
-                                "slug": row.slug,
-                                "name": row.name,
-                                "display_name": row.display_name,
-                                "description": row.description,
-                                "tool_type": row.tool_type,
-                                "version": row.version,
+                                "slug": tool_doc["slug"],
+                                "name": tool_doc["name"],
+                                "display_name": tool_doc.get("display_name", tool_doc["name"]),
+                                "description": tool_doc.get("description", ""),
+                                "tool_type": tool_doc["tool_type"],
+                                "version": tool_doc.get("version", "1.0.0"),
                                 "parameters": parameters,
-                                "input_schema": row.input_schema,
-                                "output_schema": row.output_schema,
-                                "tags": row.tags or []
+                                "input_schema": tool_doc.get("input_schema", {}),
+                                "output_schema": tool_doc.get("output_schema", {}),
+                                "tags": tool_doc.get("tags", [])
                             },
                             "provider": {
                                 "slug": provider_slug,
-                                "name": row.provider_name
+                                "name": toolkit_doc["name"]
                             }
                         }
                 
-                # If filtering by specific provider, return just that tool
-                if provider_slug:
-                    return tools_by_provider.get(provider_slug)
-                
-                # Otherwise return all providers that have this tool
+                # Return all providers that have this tool
                 return {
                     "tool_slug": tool_slug,
                     "providers": list(tools_by_provider.values())
@@ -846,100 +745,95 @@ class DatabaseCatalogService:
             provider_slug: Optional provider slug to filter by
             force_refresh: Force refresh from external sources
         """
-        await self._ensure_engine()
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Build the query based on whether we're filtering by provider
-                if provider_slug:
-                    # Get tool from specific provider
-                    tool_query = text("""
-                        SELECT 
-                            t.tool_id, t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
-                            t.input_schema, t.output_schema, t.tags,
-                            tk.slug as provider_slug, tk.name as provider_name
-                        FROM tools t
-                        JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                        WHERE t.name = :tool_name 
-                          AND tk.slug = :provider_slug 
-                          AND t.is_deprecated = FALSE 
-                          AND tk.is_deprecated = FALSE
-                    """)
-                    params = {"tool_name": tool_name, "provider_slug": provider_slug}
-                else:
-                    # Get tool from any provider
-                    tool_query = text("""
-                        SELECT 
-                            t.tool_id, t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
-                            t.input_schema, t.output_schema, t.tags,
-                            tk.slug as provider_slug, tk.name as provider_name
-                        FROM tools t
-                        JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                        WHERE t.name = :tool_name 
-                          AND t.is_deprecated = FALSE 
-                          AND tk.is_deprecated = FALSE
-                        ORDER BY tk.slug
-                    """)
-                    params = {"tool_name": tool_name}
+            # Build the filter based on whether we're filtering by provider
+            if provider_slug:
+                # Get toolkit ID first
+                toolkit_doc = await self.database.toolkits.find_one({
+                    "slug": provider_slug,
+                    "is_deprecated": False
+                })
                 
-                tool_result = await session.execute(tool_query, params)
-                tool_rows = tool_result.fetchall()
-                
-                if not tool_rows:
+                if not toolkit_doc:
                     return None
                 
-                # Group by provider if not filtering by specific provider
+                # Get tool from specific provider
+                tool_doc = await self.database.tools.find_one({
+                    "name": tool_name,
+                    "toolkit_id": str(toolkit_doc["_id"]),
+                    "is_deprecated": False
+                })
+                
+                if not tool_doc:
+                    return None
+                
+                # Parse the input schema to extract parameters
+                parameters = self._parse_input_schema(tool_doc.get("input_schema", {}))
+                
+                tool_data = {
+                    "tool": {
+                        "slug": tool_doc["slug"],
+                        "name": tool_doc["name"],
+                        "display_name": tool_doc.get("display_name", tool_doc["name"]),
+                        "description": tool_doc.get("description", ""),
+                        "tool_type": tool_doc["tool_type"],
+                        "version": tool_doc.get("version", "1.0.0"),
+                        "parameters": parameters,
+                        "input_schema": tool_doc.get("input_schema", {}),
+                        "output_schema": tool_doc.get("output_schema", {}),
+                        "tags": tool_doc.get("tags", [])
+                    },
+                    "provider": {
+                        "slug": provider_slug,
+                        "name": toolkit_doc["name"]
+                    }
+                }
+                
+                return tool_data
+            else:
+                # Get tool from any provider
+                cursor = self.database.tools.find({
+                    "name": tool_name,
+                    "is_deprecated": False
+                })
+                
                 tools_by_provider = {}
                 
-                for row in tool_rows:
-                    provider_slug = row.provider_slug
-                    if provider_slug not in tools_by_provider:
+                async for tool_doc in cursor:
+                    # Get toolkit info
+                    toolkit_doc = await self.database.toolkits.find_one({
+                        "_id": ObjectId(tool_doc["toolkit_id"]),
+                        "is_deprecated": False
+                    })
+                    
+                    if toolkit_doc:
+                        provider_slug = toolkit_doc["slug"]
+                        
                         # Parse the input schema to extract parameters
-                        parameters = []
-                        if row.input_schema and isinstance(row.input_schema, dict):
-                            properties = row.input_schema.get('properties', {})
-                            required = row.input_schema.get('required', [])
-                            
-                            for param_name, param_spec in properties.items():
-                                if isinstance(param_spec, dict):
-                                    param = {
-                                        "name": param_name,
-                                        "display_name": param_spec.get('title', param_name),
-                                        "description": param_spec.get('description', ''),
-                                        "type": param_spec.get('type', 'string'),
-                                        "required": param_name in required,
-                                        "default": param_spec.get('default'),
-                                        "validation": {
-                                            "examples": param_spec.get('examples', []),
-                                            "nullable": param_spec.get('nullable', False)
-                                        }
-                                    }
-                                    parameters.append(param)
+                        parameters = self._parse_input_schema(tool_doc.get("input_schema", {}))
                         
                         tools_by_provider[provider_slug] = {
                             "tool": {
-                                "slug": row.slug,
-                                "name": row.name,
-                                "display_name": row.display_name,
-                                "description": row.description,
-                                "tool_type": row.tool_type,
-                                "version": row.version,
+                                "slug": tool_doc["slug"],
+                                "name": tool_doc["name"],
+                                "display_name": tool_doc.get("display_name", tool_doc["name"]),
+                                "description": tool_doc.get("description", ""),
+                                "tool_type": tool_doc["tool_type"],
+                                "version": tool_doc.get("version", "1.0.0"),
                                 "parameters": parameters,
-                                "input_schema": row.input_schema,
-                                "output_schema": row.output_schema,
-                                "tags": row.tags or []
+                                "input_schema": tool_doc.get("input_schema", {}),
+                                "output_schema": tool_doc.get("output_schema", {}),
+                                "tags": tool_doc.get("tags", [])
                             },
                             "provider": {
                                 "slug": provider_slug,
-                                "name": row.provider_name
+                                "name": toolkit_doc["name"]
                             }
                         }
                 
-                # If filtering by specific provider, return just that tool
-                if provider_slug:
-                    return tools_by_provider.get(provider_slug)
-                
-                # Otherwise return all providers that have this tool
+                # Return all providers that have this tool
                 return {
                     "tool_name": tool_name,
                     "providers": list(tools_by_provider.values())
@@ -960,85 +854,91 @@ class DatabaseCatalogService:
             limit: Maximum number of results
             force_refresh: Force refresh from external sources
         """
-        await self._ensure_engine()
+        await self._ensure_client()
         
         try:
-            async with self.session_factory() as session:
-                # Build the base query
-                base_query = """
-                    SELECT 
-                        t.tool_id, t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
-                        t.input_schema, t.output_schema, t.tags,
-                        tk.slug as provider_slug, tk.name as provider_name
-                    FROM tools t
-                    JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                    WHERE t.is_deprecated = FALSE AND tk.is_deprecated = FALSE
-                """
+            # Build the base filter
+            base_filter = {"is_deprecated": False}
+            
+            # Add provider filter if specified
+            if provider_slug:
+                toolkit_doc = await self.database.toolkits.find_one({
+                    "slug": provider_slug,
+                    "is_deprecated": False
+                })
                 
-                params = {}
-                conditions = []
+                if not toolkit_doc:
+                    return {
+                        "query": query,
+                        "provider_filter": provider_slug,
+                        "tool_type_filter": tool_type,
+                        "total_tools": 0,
+                        "total_providers": 0,
+                        "results": [],
+                        "error": "Provider not found"
+                    }
                 
-                # Add provider filter if specified
-                if provider_slug:
-                    conditions.append("tk.slug = :provider_slug")
-                    params["provider_slug"] = provider_slug
+                base_filter["toolkit_id"] = str(toolkit_doc["_id"])
+            
+            # Add tool type filter if specified
+            if tool_type:
+                base_filter["tool_type"] = tool_type
+            
+            # Add search query if specified
+            if query:
+                base_filter["$or"] = [
+                    {"name": {"$regex": query, "$options": "i"}},
+                    {"display_name": {"$regex": query, "$options": "i"}},
+                    {"description": {"$regex": query, "$options": "i"}}
+                ]
+            
+            # Execute query
+            cursor = self.database.tools.find(base_filter).limit(limit)
+            tool_docs = await cursor.to_list(length=None)
+            
+            # Group tools by provider
+            tools_by_provider = {}
+            
+            for tool_doc in tool_docs:
+                # Get toolkit info
+                toolkit_doc = await self.database.toolkits.find_one({
+                    "_id": ObjectId(tool_doc["toolkit_id"]),
+                    "is_deprecated": False
+                })
                 
-                # Add tool type filter if specified
-                if tool_type:
-                    conditions.append("t.tool_type = :tool_type")
-                    params["tool_type"] = tool_type
-                
-                # Add search query if specified
-                if query:
-                    conditions.append("(t.name ILIKE :query OR t.display_name ILIKE :query OR t.description ILIKE :query)")
-                    params["query"] = f"%{query}%"
-                
-                # Combine conditions
-                if conditions:
-                    base_query += " AND " + " AND ".join(conditions)
-                
-                # Add ordering and limit
-                base_query += " ORDER BY tk.slug, t.name LIMIT :limit"
-                params["limit"] = limit
-                
-                tool_result = await session.execute(text(base_query), params)
-                tool_rows = tool_result.fetchall()
-                
-                # Group tools by provider
-                tools_by_provider = {}
-                
-                for row in tool_rows:
-                    provider_slug = row.provider_slug
+                if toolkit_doc:
+                    provider_slug = toolkit_doc["slug"]
+                    
                     if provider_slug not in tools_by_provider:
                         tools_by_provider[provider_slug] = {
                             "provider": {
                                 "slug": provider_slug,
-                                "name": row.provider_name
+                                "name": toolkit_doc["name"]
                             },
                             "tools": []
                         }
                     
                     tool = {
-                        "slug": row.slug,
-                        "name": row.name,
-                        "display_name": row.display_name,
-                        "description": row.description,
-                        "tool_type": row.tool_type,
-                        "version": row.version,
-                        "input_schema": row.input_schema,
-                        "output_schema": row.output_schema,
-                        "tags": row.tags or []
+                        "slug": tool_doc["slug"],
+                        "name": tool_doc["name"],
+                        "display_name": tool_doc.get("display_name", tool_doc["name"]),
+                        "description": tool_doc.get("description", ""),
+                        "tool_type": tool_doc["tool_type"],
+                        "version": tool_doc.get("version", "1.0.0"),
+                        "input_schema": tool_doc.get("input_schema", {}),
+                        "output_schema": tool_doc.get("output_schema", {}),
+                        "tags": tool_doc.get("tags", [])
                     }
                     tools_by_provider[provider_slug]["tools"].append(tool)
-                
-                return {
-                    "query": query,
-                    "provider_filter": provider_slug,
-                    "tool_type_filter": tool_type,
-                    "total_tools": sum(len(provider["tools"]) for provider in tools_by_provider.values()),
-                    "total_providers": len(tools_by_provider),
-                    "results": list(tools_by_provider.values())
-                }
+            
+            return {
+                "query": query,
+                "provider_filter": provider_slug,
+                "tool_type_filter": tool_type,
+                "total_tools": sum(len(provider["tools"]) for provider in tools_by_provider.values()),
+                "total_providers": len(tools_by_provider),
+                "results": list(tools_by_provider.values())
+            }
                 
         except Exception as e:
             logger.error(f"Error searching tools in database: {e}")
@@ -1051,3 +951,29 @@ class DatabaseCatalogService:
                 "results": [],
                 "error": str(e)
             }
+
+    def _parse_input_schema(self, input_schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Parse input schema to extract parameters"""
+        parameters = []
+        
+        if input_schema and isinstance(input_schema, dict):
+            properties = input_schema.get('properties', {})
+            required = input_schema.get('required', [])
+            
+            for param_name, param_spec in properties.items():
+                if isinstance(param_spec, dict):
+                    param = {
+                        "name": param_name,
+                        "display_name": param_spec.get('title', param_name),
+                        "description": param_spec.get('description', ''),
+                        "type": param_spec.get('type', 'string'),
+                        "required": param_name in required,
+                        "default": param_spec.get('default'),
+                        "validation": {
+                            "examples": param_spec.get('examples', []),
+                            "nullable": param_spec.get('nullable', False)
+                        }
+                    }
+                    parameters.append(param)
+        
+        return parameters

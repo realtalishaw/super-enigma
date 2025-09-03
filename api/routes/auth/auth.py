@@ -37,7 +37,8 @@ async def login_or_create_user(request: AuthRequest):
     This is a simplified authentication for testing purposes.
     Returns user ID and whether this is a new user.
     """
-    user_service = UserService()
+    from database.config import get_database_url
+    user_service = UserService(get_database_url())
     
     try:
         # Check if user exists, create if not

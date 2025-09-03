@@ -52,8 +52,9 @@ class CatalogManager:
             
             # Initialize catalog service
             try:
+                from database.config import get_database_url
                 self.catalog_service = DatabaseCatalogService(
-                    database_url=settings.database_url,
+                    database_url=get_database_url(),
                     redis_cache=self.redis_cache or None
                 )
                 logger.info("Database catalog service initialized successfully")

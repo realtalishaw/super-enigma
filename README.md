@@ -1,120 +1,80 @@
-# Weave - Workflow Automation Engine UI
+# Workflow Automation Engine
 
-A modern, responsive web interface for building and managing automated workflows. Built with FastAPI, Jinja2 templates, HTMX, and TailwindCSS.
+A powerful API-based workflow automation platform that connects various services and APIs to create automated workflows. Built with FastAPI and MongoDB.
 
-## Features
+## 🚀 Quick Start
 
-- **Home Page**: Describe what you want to automate and select integrations
-- **Workflow Suggestions**: AI-powered workflow recommendations based on your prompt
-  - **Multiple Suggestions**: Generate 1-5 workflow options in parallel for variety and choice
-- **Workflow Builder**: Visual workflow editor with drag-and-drop nodes
-- **Real-time Logs**: Live execution monitoring and debugging
-- **Integration Management**: Connect and manage various service integrations
-- **Catalog System**: Comprehensive provider, action, and trigger catalog with caching
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
+### Prerequisites
+- Python 3.9+
+- Redis (local or cloud)
+- MongoDB access (configured cloud instance)
+- API keys for Composio, Anthropic, and optionally Groq
 
-## Tech Stack
+### Setup
 
-- **Backend**: FastAPI (Python)
-- **Templates**: Jinja2
-- **Frontend**: HTMX + Alpine.js + TailwindCSS
-- **HTTP Client**: httpx for backend API communication
-- **Authentication**: Email-based magic link authentication
-
-## Project Structure
-
-```
-app/
-├── main.py              # FastAPI application entry point
-├── ui_routes.py         # UI routes and HTMX partials
-├── services/
-│   └── ui_client.py     # HTTP client for backend APIs
-└── templates/
-    ├── base.html        # Base template with common layout
-    ├── components/      # Reusable UI components
-    ├── pages/          # Main page templates
-    └── partials/       # HTMX partial templates
-
-core/
-├── catalog/             # Catalog system (providers, actions, triggers)
-│   ├── models.py        # Data models
-│   ├── fetchers.py      # Data source fetchers
-│   ├── database_service.py # Main database service
-│   └── cache.py         # Redis cache store
-└── dsl/                 # Domain-specific language definitions
-
-database/
-├── config.py            # Database configuration
-└── schema/              # Database schemas
-    ├── catalog_tables.sql
-    └── user_tables.sql
-
-scripts/
-├── catalog/             # Catalog management scripts
-│   ├── fetch_categories.py
-│   ├── fetch_all_tools.py
-│   └── ...
-└── setup_catalog.py     # Catalog setup script
-```
-
-## Prerequisites
-
-- Python 3.8+
-- Virtual environment (recommended)
-
-## Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd workflow-automation-engine
-   ```
-
-2. **Create and activate virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set environment variables**
-   ```bash
-   export WEAVE_API_BASE=http://localhost:8001  # Backend API URL
-   export COMPOSIO_API_KEY=your_composio_api_key_here  # For catalog data
-   export DATABASE_URL=postgresql://user:password@localhost/workflow_automation
-   export REDIS_URL=redis://localhost:6379
-   ```
-
-## Running the Application
-
-### Option 1: Start Both Servers (Recommended)
+**Option 1: Quick Setup**
 ```bash
-python start_both.py
+./quick_setup.sh
 ```
 
-This will start both the frontend (port 8000) and backend (port 8001) servers.
-
-### Option 2: Start Servers Separately
-
-**Start Backend API:**
+**Option 2: Comprehensive Setup**
 ```bash
-cd api
-python run.py
+python setup.py
 ```
-Backend will be available at `http://localhost:8001`
 
-**Start Frontend UI:**
+**Option 3: Manual Setup**
 ```bash
-python run.py
-```
-Frontend will be available at `http://localhost:8000`
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-### Open Your Browser
-Navigate to `http://localhost:8000` for the UI
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment
+python setup_env.py
+
+# Configure API keys in .env file
+# Set up database
+python scripts/migrate_to_mongodb.py
+```
+
+### Running the Application
+
+**Start the API Server:**
+```bash
+python api/run.py
+```
+
+### Access Points
+- **API Server**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+
+## 🏗️ Architecture
+
+### Core Components
+
+- **API Server** (Port 8001) - FastAPI backend with REST endpoints
+- **DSL Generator** - AI-powered workflow generation
+- **Catalog System** - Integration and tool management
+
+### Technology Stack
+
+- **Backend**: FastAPI, Python 3.9+
+- **Database**: MongoDB (cloud instance)
+- **Cache**: Redis
+- **AI**: Anthropic Claude, Groq
+- **Integrations**: Composio API
+
+## ✨ Features
+
+- **Workflow Builder**: Programmatic workflow creation via API
+- **Service Integration**: Connect to 100+ services via Composio
+- **AI-Powered Suggestions**: Intelligent workflow recommendations using Claude
+- **Real-time Execution**: Monitor and manage workflow runs
+- **User Management**: Multi-user support with preferences and history
+- **API-First Design**: RESTful API for all operations
+- **Advanced Flow Control**: IF/ELSE, loops, parallel execution
 
 ## Catalog System
 
@@ -124,7 +84,7 @@ The project includes a comprehensive catalog system for managing providers, acti
 - **Action Specifications**: Define available actions for each provider
 - **Trigger Specifications**: Define available triggers for each provider
 - **Caching**: Redis-based caching for performance
-- **Database Storage**: PostgreSQL-based persistent storage
+- **Database Storage**: MongoDB-based persistent storage
 
 ### Setting Up the Catalog
 
@@ -138,12 +98,14 @@ The project includes a comprehensive catalog system for managing providers, acti
    # Install dependencies
    pip install -r requirements.txt
    
-   # Set up database
-   createdb workflow_automation
-   psql -d workflow_automation -f database/schema/catalog_tables.sql
+   # Set up MongoDB
+   # Ensure MongoDB is running and accessible
    
    # Start Redis
    brew services start redis  # macOS
+   
+   # Run migration script
+   python scripts/migrate_to_mongodb.py
    
    # Test setup
    python scripts/catalog/test_catalog_setup.py
@@ -169,4 +131,4 @@ The UI expects a backend API with the following endpoints:
 - `GET /api/integrations` - List available integrations
 - `POST /api/suggestions:generate` - Generate workflow suggestions
 - `GET /api/preferences/{user_id}` - Get user preferences
-- `GET /api/auth/session`# super-enigma
+- `GET /api/auth/session` - Get authentication session

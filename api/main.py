@@ -8,9 +8,7 @@ import asyncio
 
 # Import route modules
 from api.routes import (
-    system_router,
-    frontend_router,
-    runs_router,
+    api_router,
     catalog_router,
     auth_router
 )
@@ -34,10 +32,7 @@ app = FastAPI(
             "name": "Auth",
             "description": "Authentication and session management endpoints"
         },
-        {
-            "name": "System",
-            "description": "System health and status endpoints"
-        },
+
         {
             "name": "Integrations",
             "description": "Integration management endpoints"
@@ -50,10 +45,7 @@ app = FastAPI(
             "name": "Preferences",
             "description": "User preferences endpoints"
         },
-        {
-            "name": "Runs",
-            "description": "Workflow execution and monitoring"
-        },
+
         {
             "name": "Catalog",
             "description": "Integration catalog and tool management"
@@ -106,11 +98,8 @@ app.add_middleware(
 )
 
 # Include all route modules
-app.include_router(system_router)
-app.include_router(frontend_router)
-app.include_router(runs_router)
+app.include_router(api_router)
 app.include_router(catalog_router)
-
 app.include_router(auth_router)
 
 # Root endpoint

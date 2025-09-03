@@ -1,5 +1,5 @@
 """
-Frontend suggestions routes.
+API suggestions routes.
 """
 
 from fastapi import APIRouter, Depends, HTTPException

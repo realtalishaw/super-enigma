@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     
     # Database settings
     database_url: str = Field(
-        default="postgresql://user:password@localhost/workflow_automation",
-        description="PostgreSQL database connection URL"
+        default="mongodb+srv://dylan:43VFMVJVJUFAII9g@cluster0.8phbhhb.mongodb.net/weave-dev-db?retryWrites=true&w=majority",
+        description="MongoDB database connection URL"
     )
     
     # Redis settings

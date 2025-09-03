@@ -9,31 +9,49 @@ def get_database_config() -> Dict[str, Any]:
     """Get database configuration from environment variables or defaults"""
     
     return {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'database': os.getenv('DB_NAME', 'workflow_engine'),
-        'user': os.getenv('DB_USER', 'talishawhite'),  # Your system username
-        'password': os.getenv('DB_PASSWORD', ''),  # No password for local setup
-        'port': int(os.getenv('DB_PORT', '5432')),
-        'sslmode': os.getenv('DB_SSLMODE', 'prefer')
+        'host': os.getenv('DB_HOST', 'cluster0.8phbhhb.mongodb.net'),
+        'database': os.getenv('DB_NAME', 'weave-dev-db'),
+        'user': os.getenv('DB_USER', 'dylan'),
+        'password': os.getenv('DB_PASSWORD', '43VFMVJVJUFAII9g'),
+        'port': int(os.getenv('DB_PORT', '27017')),
+        'ssl': os.getenv('DB_SSL', 'true').lower() == 'true',
+        'retry_writes': os.getenv('DB_RETRY_WRITES', 'true').lower() == 'true',
+        'w': os.getenv('DB_W', 'majority')
     }
 
 def get_database_url() -> str:
-    """Get database URL for SQLAlchemy"""
+    """Get database URL for MongoDB"""
     
     config = get_database_config()
     
-    if config['password']:
-        return f"postgresql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+    # Build MongoDB connection string
+    auth_part = f"{config['user']}:{config['password']}"
+    host_part = config['host']
+    port_part = f":{config['port']}" if config['port'] != 27017 else ""
+    db_part = f"/{config['database']}"
+    
+    # Build query parameters
+    query_params = []
+    if config['ssl']:
+        query_params.append("ssl=true")
+    if config['retry_writes']:
+        query_params.append("retryWrites=true")
+    if config['w']:
+        query_params.append(f"w={config['w']}")
+    
+    query_string = "&".join(query_params) if query_params else ""
+    
+    if query_string:
+        return f"mongodb+srv://{auth_part}@{host_part}{db_part}?{query_string}"
     else:
-        return f"postgresql://{config['user']}@{config['host']}:{config['port']}/{config['database']}"
+        return f"mongodb+srv://{auth_part}@{host_part}{db_part}"
 
-# Database schema information
-CATALOG_TABLES = [
+# MongoDB collection names
+CATALOG_COLLECTIONS = [
     'toolkit_categories',
     'toolkits', 
     'toolkit_auth_schemes',
     'tools',
-    'tool_parameters',
     'tool_parameters',
     'tool_returns',
     'tool_examples',
@@ -41,14 +59,14 @@ CATALOG_TABLES = [
     'catalog_snapshots'
 ]
 
-# User tables
-USER_TABLES = [
+# User collections
+USER_COLLECTIONS = [
     'users',
     'user_preferences'
 ]
 
-# All tables
-ALL_TABLES = CATALOG_TABLES + USER_TABLES
+# All collections
+ALL_COLLECTIONS = CATALOG_COLLECTIONS + USER_COLLECTIONS
 
 # Default categories that should exist
 DEFAULT_CATEGORIES = [

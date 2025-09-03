@@ -5,9 +5,8 @@ Catalog tools routes.
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from bson import ObjectId
 
 # Import database configuration
 import sys
@@ -19,24 +18,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tools", tags=["Catalog"])
 
-# Database engine and session factory
-_engine = None
-_session_factory = None
+# Global MongoDB client
+_client: Optional[AsyncIOMotorClient] = None
+_database: Optional[AsyncIOMotorDatabase] = None
 
-async def get_database_session() -> AsyncSession:
-    """Get database session"""
-    global _engine, _session_factory
+async def get_database():
+    """Get MongoDB database instance"""
+    global _client, _database
     
-    if _engine is None:
+    if _client is None:
         database_url = get_database_url()
-        # Convert to async URL
-        async_url = database_url.replace('postgresql://', 'postgresql+asyncpg://')
-        _engine = create_async_engine(async_url, echo=False)
-        _session_factory = sessionmaker(
-            _engine, class_=AsyncSession, expire_on_commit=False
-        )
+        _client = AsyncIOMotorClient(database_url)
+        _database = _client.get_database()
     
-    return _session_factory()
+    return _database
 
 @router.get("")
 async def list_tools(
@@ -48,111 +43,113 @@ async def list_tools(
 ):
     """List tools with optional filtering and pagination"""
     try:
-        async with await get_database_session() as session:
-            # Build base query for counting total
-            count_query = """
-                SELECT COUNT(*) as total
-                FROM tools t
-                JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                WHERE t.is_deprecated = FALSE AND tk.is_deprecated = FALSE
-            """
-            
-            # Build main query
-            base_query = """
-                SELECT 
-                    t.tool_id,
-                    t.slug,
-                    t.name,
-                    t.display_name,
-                    t.description,
-                    t.tool_type,
-                    t.version,
-                    t.input_schema,
-                    t.output_schema,
-                    t.tags,
-                    tk.slug as toolkit_slug,
-                    tk.name as toolkit_name,
-                    tk.category as toolkit_category
-                FROM tools t
-                JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                WHERE t.is_deprecated = FALSE AND tk.is_deprecated = FALSE
-            """
-            
-            params = {}
-            conditions = []
-            
-            # Add provider filter
-            if provider:
-                provider_condition = " AND tk.slug = :provider"
-                count_query += provider_condition
-                base_query += provider_condition
-                params["provider"] = provider
-            
-            # Add search filter
-            if search:
-                search_condition = " AND (LOWER(t.name) LIKE LOWER(:search) OR LOWER(t.description) LIKE LOWER(:search))"
-                count_query += search_condition
-                base_query += search_condition
-                params["search"] = f"%{search}%"
-            
-            # Add tool type filter
-            if tool_type:
-                type_condition = " AND t.tool_type = :tool_type"
-                count_query += type_condition
-                base_query += type_condition
-                params["tool_type"] = tool_type
-            
-            # Get total count
-            count_result = await session.execute(text(count_query), params)
-            total_count = count_result.scalar()
-            
-            # Add ordering and pagination
-            base_query += " ORDER BY tk.name, t.tool_type, t.name"
-            if limit:
-                base_query += " LIMIT :limit OFFSET :offset"
-                params["limit"] = limit
-                params["offset"] = offset
-            
-            query = text(base_query)
-            result = await session.execute(query, params)
-            rows = result.fetchall()
-            
-            tools = []
-            for row in rows:
-                tool = {
-                    "id": row.tool_id,
-                    "slug": row.slug,
-                    "name": row.name,
-                    "display_name": row.display_name,
-                    "description": row.description,
-                    "type": row.tool_type,
-                    "version": row.version,
-                    "input_schema": row.input_schema,
-                    "output_schema": row.output_schema,
-                    "tags": row.tags or [],
-                    "toolkit": {
-                        "slug": row.toolkit_slug,
-                        "name": row.toolkit_name,
-                        "category": row.toolkit_category
+        database = await get_database()
+        
+        # Build MongoDB query
+        query = {
+            "is_deprecated": False
+        }
+        
+        # Add provider filter
+        if provider:
+            # First get the toolkit_id for the provider slug
+            toolkit = await database.toolkits.find_one({
+                "slug": provider,
+                "is_deprecated": False
+            })
+            if toolkit:
+                query["toolkit_id"] = toolkit["toolkit_id"]
+            else:
+                # Provider not found, return empty results
+                return {
+                    "tools": [],
+                    "pagination": {
+                        "total": 0,
+                        "limit": limit,
+                        "offset": offset,
+                        "has_more": False,
+                        "page": 1,
+                        "total_pages": 0
+                    },
+                    "filters": {
+                        "provider": provider,
+                        "search": search,
+                        "tool_type": tool_type
                     }
                 }
-                tools.append(tool)
+        
+        # Add tool type filter
+        if tool_type:
+            query["tool_type"] = tool_type
+        
+        # Add search filter
+        if search:
+            query["$or"] = [
+                {"name": {"$regex": search, "$options": "i"}},
+                {"description": {"$regex": search, "$options": "i"}}
+            ]
+        
+        # Get total count
+        total_count = await database.tools.count_documents(query)
+        
+        # Get tools with pagination
+        cursor = database.tools.find(query).sort([
+            ("toolkit_id", 1),
+            ("tool_type", 1),
+            ("name", 1)
+        ])
+        
+        if offset:
+            cursor = cursor.skip(offset)
+        if limit:
+            cursor = cursor.limit(limit)
+        
+        tools_data = await cursor.to_list(length=None)
+        
+        # Get toolkit information for each tool
+        tools = []
+        for tool in tools_data:
+            # Get toolkit info
+            toolkit = await database.toolkits.find_one({
+                "_id": tool["toolkit_id"]
+            })
             
-            return {
-                "items": tools,
-                "pagination": {
-                    "total": total_count,
-                    "limit": limit,
-                    "offset": offset,
-                    "has_more": limit and (offset + limit) < total_count
-                },
-                "filters": {
-                    "provider": provider,
-                    "search": search,
-                    "tool_type": tool_type
+            tool_info = {
+                "id": str(tool["_id"]),
+                "slug": tool.get("slug"),
+                "name": tool["name"],
+                "display_name": tool.get("display_name"),
+                "description": tool["description"],
+                "type": tool["tool_type"],
+                "version": tool.get("version"),
+                "input_schema": tool.get("input_schema"),
+                "output_schema": tool.get("output_schema"),
+                "tags": tool.get("tags", []),
+                "toolkit": {
+                    "slug": toolkit["slug"] if toolkit else None,
+                    "name": toolkit["name"] if toolkit else None,
+                    "category": toolkit.get("category") if toolkit else None
                 }
             }
-            
+            tools.append(tool_info)
+        
+        return {
+            "tools": tools,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": limit and (offset + limit) < total_count,
+                "page": (offset // limit) + 1 if limit else 1,
+                "total_pages": (total_count + limit - 1) // limit if limit else 1
+            },
+            "filters": {
+                "provider": provider,
+                "search": search,
+                "tool_type": tool_type
+            }
+        }
+        
     except Exception as e:
         logger.error(f"Error fetching tools from database: {e}")
         raise HTTPException(
@@ -164,62 +161,50 @@ async def list_tools(
 async def get_tool(tool_name: str):
     """Get tool information by name"""
     try:
-        async with await get_database_session() as session:
-            query = text("""
-                SELECT 
-                    t.tool_id,
-                    t.slug,
-                    t.name,
-                    t.display_name,
-                    t.description,
-                    t.tool_type,
-                    t.version,
-                    t.input_schema,
-                    t.output_schema,
-                    t.tags,
-                    tk.slug as toolkit_slug,
-                    tk.name as toolkit_name,
-                    tk.category as toolkit_category,
-                    tk.description as toolkit_description,
-                    tk.website_url as toolkit_website
-                FROM tools t
-                JOIN toolkits tk ON t.toolkit_id = tk.toolkit_id
-                WHERE t.slug = :tool_name 
-                AND t.is_deprecated = FALSE 
-                AND tk.is_deprecated = FALSE
-            """)
-            
-            result = await session.execute(query, {"tool_name": tool_name})
-            row = result.fetchone()
-            
-            if not row:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Tool '{tool_name}' not found"
-                )
-            
-            tool = {
-                "id": row.tool_id,
-                "slug": row.slug,
-                "name": row.name,
-                "display_name": row.display_name,
-                "description": row.description,
-                "type": row.tool_type,
-                "version": row.version,
-                "input_schema": row.input_schema,
-                "output_schema": row.output_schema,
-                "tags": row.tags or [],
-                "toolkit": {
-                    "slug": row.toolkit_slug,
-                    "name": row.toolkit_name,
-                    "category": row.toolkit_category,
-                    "description": row.toolkit_description,
-                    "website": row.toolkit_website
-                }
-            }
-            
-            return tool
-            
+        database = await get_database()
+        
+        # Find tool by name
+        tool = await database.tools.find_one({
+            "name": tool_name,
+            "is_deprecated": False
+        })
+        
+        if not tool:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Tool '{tool_name}' not found"
+            )
+        
+        # Get toolkit information
+        toolkit = await database.toolkits.find_one({
+            "_id": tool["toolkit_id"]
+        })
+        
+        # Build response
+        tool_info = {
+            "id": str(tool["_id"]),
+            "slug": tool.get("slug"),
+            "name": tool["name"],
+            "display_name": tool.get("display_name"),
+            "description": tool["description"],
+            "type": tool["tool_type"],
+            "version": tool.get("version"),
+            "input_schema": tool.get("input_schema"),
+            "output_schema": tool.get("output_schema"),
+            "tags": tool.get("tags", []),
+            "toolkit": {
+                "id": str(toolkit["_id"]) if toolkit else None,
+                "slug": toolkit["slug"] if toolkit else None,
+                "name": toolkit["name"] if toolkit else None,
+                "description": toolkit.get("description") if toolkit else None,
+                "category": toolkit.get("category") if toolkit else None,
+                "logo_url": toolkit.get("logo_url") if toolkit else None,
+                "website_url": toolkit.get("website_url") if toolkit else None
+            } if toolkit else None
+        }
+        
+        return tool_info
+        
     except HTTPException:
         raise
     except Exception as e:

@@ -673,28 +673,47 @@ class DSLGeneratorService:
 {tool_context_str}
 </available_tools>
 
+**IMPORTANT: Understanding Trigger Types**
+There are two kinds of trigger available:
+
+1. **event_based**: These are triggers from the <available_tools> list (e.g.; "SALESFORCE_NEW_LEAD_TRIGGER"). Use one of these when the user wants to start a workflow based on an event in a specific application.
+2. **schedule_based**" This is a generic trigger for time-based workflows. You MUST use the exact slug "SCHEDULE_BASED" for the `trigger_slug` if the user's request mentions a schedule, like "every morning", "at 8 PM", "on Fridays", "weekly", or any other time-based interval.
+
 **Your Task:**
 1.  **Reasoning:** First, think step-by-step about how to accomplish the user's goal with the available tools.
 2.  **Tool Selection:** Based on your reasoning, select exactly ONE trigger and a sequence of one or more actions.
 3.  **JSON Output:** Your response MUST be a JSON object with three keys: "reasoning", "trigger_slug", and "action_slugs".
 
 **Rules for Tool Selection:**
-- The slugs in your response MUST be an EXACT match to a slug from the `<available_tools>` list.
+- If the request is time-based, you MUST use "SCHEDULE_BASED" as the `trigger_slug`.
+- For `event_based` triggers, the slug in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
+- Action slugs in your response MUST be an EXACT match to a slug from the **Actions** section of `<available_tools>`.
+- ⚠️  CRITICAL: NEVER use a trigger slug as an action slug or vice versa. Triggers and actions are completely separate.
 - If a suitable workflow cannot be built, return `null` for `trigger_slug` and an empty list for `action_slugs`.
 
-**Example:**
+**Example 1 (Event-Based):**
 <user_request>
 When I get a new lead in Salesforce, add them to a Google Sheet and send a celebration message in Slack.
 </user_request>
 
 **Expected JSON Response:**
-```json
 {{
-    "reasoning": "The workflow starts when a new lead is created in Salesforce. Then, it adds a new row to a Google Sheet with the lead's information. Finally, it posts a message to a Slack channel to announce the new lead.",
+    "reasoning": "The workflow starts with an event, when a new lead is created in Salesforce. Then, it adds a new row to a Google Sheet. Finally, it posts a message to a Slack channel.",
     "trigger_slug": "SALESFORCE_NEW_LEAD_TRIGGER",
     "action_slugs": ["GOOGLESHEETS_CREATE_SPREADSHEET_ROW", "SLACK_SEND_MESSAGE"]
 }}
-```
+
+**Example 2 (Schedule-Based):**
+<user_request>
+Every Friday, get the total number of new customers from Stripe and post it to the #weekly-summary Slack channel.
+</user_request>
+
+**Expected JSON Response:**
+{{
+    "reasoning": "The workflow needs to run on a schedule, specifically every Friday. Therefore, a schedule-based trigger is required. The first action is to list customers from Stripe to get the data. The second action is to post the summarized data to a Slack channel.",
+    "trigger_slug": "SCHEDULE_BASED",
+    "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_POST_MESSAGE"]
+}}
 
 Now, analyze the user request provided at the top and generate the JSON response."""
         
@@ -982,7 +1001,7 @@ Now, analyze the user request provided at the top and generate the JSON response
                     )
                 )
                 if not trigger_exists:
-                    errors.append(f"Invalid trigger: '{toolkit_slug}.{trigger_slug}'. It is not in the <available_tools> list.")
+                    errors.append(f"Invalid trigger: '{toolkit_slug}.{trigger_slug}'. It is not in the available triggers list.")
             
         # Check actions
         for action in workflow.get("actions", []):
@@ -1002,7 +1021,7 @@ Now, analyze the user request provided at the top and generate the JSON response
                     )
                 )
                 if not action_exists:
-                    errors.append(f"Invalid action: '{toolkit_slug}.{action_name}'. It is not in the <available_tools> list.")
+                    errors.append(f"Invalid action: '{toolkit_slug}.{action_name}'. It is not in the available actions list.")
             
         return errors
 
@@ -1054,13 +1073,14 @@ Now, analyze the user request provided at the top and generate the JSON response
 5. Your response MUST be a single, valid JSON object and nothing else.
 6. NEVER invent or modify toolkit_slug, composio_trigger_slug, or action_name values.
 7. ONLY use the exact values from the <available_tools> section above.
-8. If you're unsure about a value, use the first available option from the list.
-9. Every parameter MUST have a "type" field - this is CRITICAL for validation.
-10. Use "string", "number", "boolean", or "array" as type values.
-11. COPY AND PASTE the exact slug/name values - do not modify them.
-12. Your JSON MUST be parseable by Python's json.loads().
-13. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
-14. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
+8. ⚠️  CRITICAL: Use triggers ONLY in the "triggers" array and actions ONLY in the "actions" array. NEVER use a trigger as an action or vice versa.
+9. If you're unsure about a value, use the first available option from the list.
+10. Every parameter MUST have a "type" field - this is CRITICAL for validation.
+11. Use "string", "number", "boolean", or "array" as type values.
+12. COPY AND PASTE the exact slug/name values - do not modify them.
+13. Your JSON MUST be parseable by Python's json.loads().
+14. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
+15. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
 </instructions>
 
 <dynamic_example>

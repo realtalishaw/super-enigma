@@ -1,5 +1,5 @@
 """
-Frontend user preferences routes.
+API user preferences routes.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -8,15 +8,14 @@ from uuid import UUID
 import logging
 
 from api.user_services.user_service import UserService
+from database.config import get_database_url
 
 router = APIRouter(prefix="/preferences", tags=["Preferences"])
 
-# Initialize user service
-user_service = UserService()
-
 async def get_user_service() -> UserService:
     """Dependency to get user service instance"""
-    return user_service
+    database_url = get_database_url()
+    return UserService(database_url)
 
 @router.get("/{user_id}")
 async def get_user_preferences(

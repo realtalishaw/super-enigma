@@ -3,36 +3,43 @@ Suggestions database service for storing and retrieving workflow suggestions.
 """
 
 import asyncio
+import json
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text, select
-import json
-
-from core.config import settings
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
-
 class SuggestionsService:
-    """Database service for managing workflow suggestions."""
+    """Service for managing user suggestions and workflow recommendations"""
     
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self.engine = None
-        self.session_factory = None
+        self.client: Optional[AsyncIOMotorClient] = None
+        self.database: Optional[AsyncIOMotorDatabase] = None
         
-    async def _ensure_engine(self):
-        """Ensure database engine is initialized"""
-        if self.engine is None:
-            # Convert PostgreSQL URL to async version
-            async_url = self.database_url.replace('postgresql://', 'postgresql+asyncpg://')
-            self.engine = create_async_engine(async_url, echo=False)
-            self.session_factory = sessionmaker(
-                self.engine, class_=AsyncSession, expire_on_commit=False
-            )
+    async def _ensure_client(self):
+        """Ensure MongoDB client is initialized"""
+        if self.client is None:
+            self.client = AsyncIOMotorClient(self.database_url)
+            self.database = self.client.get_database()
+            
+            # Create indexes for better performance
+            await self._create_indexes()
+    
+    async def _create_indexes(self):
+        """Create MongoDB indexes for better performance"""
+        try:
+            # Indexes for suggestions collection
+            await self.database.suggestions.create_index([("suggestion_id", 1)], unique=True)
+            await self.database.suggestions.create_index([("user_id", 1)])
+            await self.database.suggestions.create_index([("created_at", -1)])
+            
+            logger.info("MongoDB indexes created successfully for suggestions service")
+        except Exception as e:
+            logger.warning(f"Failed to create some indexes for suggestions service: {e}")
     
     async def save_suggestion(
         self,
@@ -52,41 +59,32 @@ class SuggestionsService:
     ) -> bool:
         """Save a generated suggestion to the database."""
         try:
-            await self._ensure_engine()
+            await self._ensure_client()
             
-            async with self.session_factory() as session:
-                query = text("""
-                    INSERT INTO suggestions (
-                        user_id, user_request, selected_apps, suggestion_id, title, description,
-                        dsl_parametric, missing_fields, confidence_score, apps, source,
-                        full_workflow_json, generation_metadata
-                    ) VALUES (
-                        :user_id, :user_request, :selected_apps, :suggestion_id, :title, :description,
-                        :dsl_parametric, :missing_fields, :confidence_score, :apps, :source,
-                        :full_workflow_json, :generation_metadata
-                    )
-                """)
-                
-                await session.execute(query, {
-                    "user_id": user_id,
-                    "user_request": user_request,
-                    "selected_apps": selected_apps,
-                    "suggestion_id": suggestion_id,
-                    "title": title,
-                    "description": description,
-                    "dsl_parametric": json.dumps(dsl_parametric),
-                    "missing_fields": json.dumps(missing_fields),
-                    "confidence_score": confidence,
-                    "apps": apps,
-                    "source": source,
-                    "full_workflow_json": json.dumps(full_workflow_json) if full_workflow_json else None,
-                    "generation_metadata": json.dumps(generation_metadata) if generation_metadata else None
-                })
-                
-                await session.commit()
-                logger.info(f"Saved suggestion {suggestion_id} for user {user_id}")
-                return True
-                
+            now = datetime.now(timezone.utc)
+            suggestion_data = {
+                "user_id": user_id,
+                "user_request": user_request,
+                "selected_apps": selected_apps,
+                "suggestion_id": suggestion_id,
+                "title": title,
+                "description": description,
+                "dsl_parametric": dsl_parametric,
+                "missing_fields": missing_fields,
+                "confidence_score": confidence,
+                "apps": apps,
+                "source": source,
+                "full_workflow_json": full_workflow_json,
+                "generation_metadata": generation_metadata,
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            await self.database.suggestions.insert_one(suggestion_data)
+            
+            logger.info(f"Saved suggestion {suggestion_id} for user {user_id}")
+            return True
+            
         except Exception as e:
             logger.error(f"Failed to save suggestion {suggestion_id}: {e}")
             return False
@@ -94,37 +92,17 @@ class SuggestionsService:
     async def get_suggestion(self, suggestion_id: str) -> Optional[Dict[str, Any]]:
         """Get a suggestion by ID."""
         try:
-            await self._ensure_engine()
+            await self._ensure_client()
             
-            async with self.session_factory() as session:
-                query = text("""
-                    SELECT * FROM suggestions WHERE suggestion_id = :suggestion_id
-                """)
-                
-                result = await session.execute(query, {"suggestion_id": suggestion_id})
-                row = result.fetchone()
-                
-                if row:
-                    # Convert row to dict
-                    suggestion = dict(row._mapping)
-                    # Parse JSON fields - handle both string and dict cases
-                    if suggestion.get('dsl_parametric'):
-                        if isinstance(suggestion['dsl_parametric'], str):
-                            suggestion['dsl_parametric'] = json.loads(suggestion['dsl_parametric'])
-                    if suggestion.get('missing_fields'):
-                        if isinstance(suggestion['missing_fields'], str):
-                            suggestion['missing_fields'] = json.loads(suggestion['missing_fields'])
-                    if suggestion.get('full_workflow_json'):
-                        if isinstance(suggestion['full_workflow_json'], str):
-                            suggestion['full_workflow_json'] = json.loads(suggestion['full_workflow_json'])
-                    if suggestion.get('generation_metadata'):
-                        if isinstance(suggestion['generation_metadata'], str):
-                            suggestion['generation_metadata'] = json.loads(suggestion['generation_metadata'])
-                    
-                    return suggestion
-                
-                return None
-                
+            suggestion_doc = await self.database.suggestions.find_one({"suggestion_id": suggestion_id})
+            
+            if suggestion_doc:
+                # Convert ObjectId to string
+                suggestion_doc["_id"] = str(suggestion_doc["_id"])
+                return suggestion_doc
+            
+            return None
+            
         except Exception as e:
             logger.error(f"Failed to get suggestion {suggestion_id}: {e}")
             return None
@@ -137,42 +115,17 @@ class SuggestionsService:
     ) -> List[Dict[str, Any]]:
         """Get suggestions for a specific user."""
         try:
-            await self._ensure_engine()
+            await self._ensure_client()
             
-            async with self.session_factory() as session:
-                query = text("""
-                    SELECT * FROM suggestions 
-                    WHERE user_id = :user_id 
-                    ORDER BY created_at DESC 
-                    LIMIT :limit OFFSET :offset
-                """)
-                
-                result = await session.execute(query, {
-                    "user_id": user_id,
-                    "limit": limit,
-                    "offset": offset
-                })
-                
-                suggestions = []
-                for row in result.fetchall():
-                    suggestion = dict(row._mapping)
-                    # Parse JSON fields - handle both string and dict cases
-                    if suggestion.get('dsl_parametric'):
-                        if isinstance(suggestion['dsl_parametric'], str):
-                            suggestion['dsl_parametric'] = json.loads(suggestion['dsl_parametric'])
-                    if suggestion.get('missing_fields'):
-                        if isinstance(suggestion['missing_fields'], str):
-                            suggestion['missing_fields'] = json.loads(suggestion['missing_fields'])
-                    if suggestion.get('full_workflow_json'):
-                        if isinstance(suggestion['full_workflow_json'], str):
-                            suggestion['full_workflow_json'] = json.loads(suggestion['full_workflow_json'])
-                    if suggestion.get('generation_metadata'):
-                        if isinstance(suggestion['generation_metadata'], str):
-                            suggestion['generation_metadata'] = json.loads(suggestion['generation_metadata'])
-                    
-                    suggestions.append(suggestion)
-                
-                return suggestions
+            cursor = self.database.suggestions.find({"user_id": user_id}).sort("created_at", -1).skip(offset).limit(limit)
+            
+            suggestions = []
+            async for suggestion_doc in cursor:
+                # Convert ObjectId to string
+                suggestion_doc["_id"] = str(suggestion_doc["_id"])
+                suggestions.append(suggestion_doc)
+            
+            return suggestions
                 
         except Exception as e:
             logger.error(f"Failed to get suggestions for user {user_id}: {e}")
@@ -185,23 +138,19 @@ class SuggestionsService:
     ) -> bool:
         """Update user actions for a suggestion (e.g., accepted, rejected, workflow created)."""
         try:
-            await self._ensure_engine()
+            await self._ensure_client()
             
-            async with self.session_factory() as session:
-                query = text("""
-                    UPDATE suggestions 
-                    SET user_actions = :user_actions, updated_at = NOW()
-                    WHERE suggestion_id = :suggestion_id
-                """)
-                
-                await session.execute(query, {
-                    "suggestion_id": suggestion_id,
-                    "user_actions": json.dumps(user_actions)
-                })
-                
-                await session.commit()
+            update_result = await self.database.suggestions.update_one(
+                {"suggestion_id": suggestion_id},
+                {"$set": {"user_actions": user_actions, "updated_at": datetime.now(timezone.utc)}}
+            )
+            
+            if update_result.modified_count > 0:
                 logger.info(f"Updated user actions for suggestion {suggestion_id}")
                 return True
+            else:
+                logger.warning(f"No suggestion found with ID {suggestion_id} to update user actions.")
+                return False
                 
         except Exception as e:
             logger.error(f"Failed to update user actions for suggestion {suggestion_id}: {e}")
@@ -213,43 +162,38 @@ class SuggestionsService:
     ) -> Dict[str, Any]:
         """Get analytics on suggestions for the last N days."""
         try:
-            await self._ensure_engine()
+            await self._ensure_client()
             
-            async with self.session_factory() as session:
-                # Total suggestions - use string formatting for INTERVAL since it doesn't support parameters
-                total_query = text(f"""
-                    SELECT COUNT(*) as total FROM suggestions 
-                    WHERE created_at >= NOW() - INTERVAL '{days} days'
-                """)
+            # Calculate the date N days ago
+            days_ago = datetime.now(timezone.utc) - timedelta(days=days)
+            
+            # Total suggestions
+            total_query = {"created_at": {"$gte": days_ago}}
+            total_count = await self.database.suggestions.count_documents(total_query)
+            
+            # By source
+            source_query = {"created_at": {"$gte": days_ago}}
+            source_counts = {}
+            async for doc in self.database.suggestions.aggregate([
+                {"$match": source_query},
+                {"$group": {"_id": "$source", "count": {"$sum": 1}}}
+            ]):
+                source_counts[doc["_id"]] = doc["count"]
                 
-                total_result = await session.execute(total_query)
-                total = total_result.fetchone()[0]
-                
-                # By source
-                source_query = text(f"""
-                    SELECT source, COUNT(*) as count FROM suggestions 
-                    WHERE created_at >= NOW() - INTERVAL '{days} days'
-                    GROUP BY source
-                """)
-                
-                source_result = await session.execute(source_query)
-                source_counts = {row[0]: row[1] for row in source_result.fetchall()}
-                
-                # Average confidence
-                confidence_query = text(f"""
-                    SELECT AVG(confidence_score) as avg_confidence FROM suggestions 
-                    WHERE created_at >= NOW() - INTERVAL '{days} days' AND confidence_score IS NOT NULL
-                """)
-                
-                confidence_result = await session.execute(confidence_query)
-                avg_confidence = confidence_result.fetchone()[0] or 0
-                
-                return {
-                    "total_suggestions": total,
-                    "by_source": source_counts,
-                    "average_confidence": round(float(avg_confidence), 3),
-                    "period_days": days
-                }
+            # Average confidence
+            confidence_query = {"created_at": {"$gte": days_ago}, "confidence_score": {"$ne": None}}
+            confidence_result = await self.database.suggestions.aggregate([
+                {"$match": confidence_query},
+                {"$group": {"_id": None, "avg_confidence": {"$avg": "$confidence_score"}}}
+            ])
+            avg_confidence = next(confidence_result, {"avg_confidence": 0})["avg_confidence"]
+            
+            return {
+                "total_suggestions": total_count,
+                "by_source": source_counts,
+                "average_confidence": round(float(avg_confidence), 3),
+                "period_days": days
+            }
                 
         except Exception as e:
             logger.error(f"Failed to get suggestions analytics: {e}")
@@ -257,8 +201,8 @@ class SuggestionsService:
     
     async def close(self):
         """Close database connections."""
-        if self.engine:
-            await self.engine.dispose()
+        if self.client:
+            self.client.close()
 
 
 async def get_suggestions_service():

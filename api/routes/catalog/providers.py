@@ -5,9 +5,8 @@ Catalog providers routes.
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from bson import ObjectId
 
 # Import database configuration
 import sys
@@ -19,126 +18,95 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/providers", tags=["Catalog"])
 
-# Database engine and session factory
-_engine = None
-_session_factory = None
+# Global MongoDB client
+_client: Optional[AsyncIOMotorClient] = None
+_database: Optional[AsyncIOMotorDatabase] = None
 
-async def get_database_session() -> AsyncSession:
-    """Get database session"""
-    global _engine, _session_factory
+async def get_database():
+    """Get MongoDB database instance"""
+    global _client, _database
     
-    if _engine is None:
+    if _client is None:
         database_url = get_database_url()
-        # Convert to async URL
-        async_url = database_url.replace('postgresql://', 'postgresql+asyncpg://')
-        _engine = create_async_engine(async_url, echo=False)
-        _session_factory = sessionmaker(
-            _engine, class_=AsyncSession, expire_on_commit=False
-        )
+        _client = AsyncIOMotorClient(database_url)
+        _database = _client.get_database()
     
-    return _session_factory()
+    return _database
 
 @router.get("/{provider_slug}")
 async def get_provider(provider_slug: str):
     """Get toolkit information by slug with all associated tools"""
     try:
-        async with await get_database_session() as session:
-            # Get toolkit information
-            toolkit_query = text("""
-                SELECT 
-                    toolkit_id,
-                    slug,
-                    name,
-                    description,
-                    logo_url,
-                    website_url,
-                    category,
-                    version,
-                    created_at,
-                    updated_at,
-                    last_synced_at
-                FROM toolkits
-                WHERE slug = :provider_slug AND is_deprecated = FALSE
-            """)
-            
-            toolkit_result = await session.execute(toolkit_query, {"provider_slug": provider_slug})
-            toolkit_row = toolkit_result.fetchone()
-            
-            if not toolkit_row:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Provider '{provider_slug}' not found"
-                )
-            
-            # Get tools for this toolkit
-            tools_query = text("""
-                SELECT 
-                    tool_id,
-                    slug,
-                    name,
-                    display_name,
-                    description,
-                    tool_type,
-                    version,
-                    input_schema,
-                    output_schema,
-                    tags
-                FROM tools
-                WHERE toolkit_id = :toolkit_id AND is_deprecated = FALSE
-                ORDER BY tool_type, name
-            """)
-            
-            tools_result = await session.execute(tools_query, {"toolkit_id": toolkit_row.toolkit_id})
-            tools_data = tools_result.fetchall()
-            
-            # Organize tools by type
-            actions = []
-            triggers = []
-            
-            for tool_row in tools_data:
-                tool = {
-                    "id": tool_row.tool_id,
-                    "slug": tool_row.slug,
-                    "name": tool_row.name,
-                    "display_name": tool_row.display_name,
-                    "description": tool_row.description,
-                    "type": tool_row.tool_type,
-                    "version": tool_row.version,
-                    "input_schema": tool_row.input_schema,
-                    "output_schema": tool_row.output_schema,
-                    "tags": tool_row.tags or []
-                }
-                
-                if tool_row.tool_type == 'action':
-                    actions.append(tool)
-                elif tool_row.tool_type == 'trigger':
-                    triggers.append(tool)
-            
-            # Build provider response
-            provider = {
-                "id": toolkit_row.toolkit_id,
-                "slug": toolkit_row.slug,
-                "name": toolkit_row.name,
-                "description": toolkit_row.description,
-                "logo_url": toolkit_row.logo_url,
-                "website_url": toolkit_row.website_url,
-                "category": toolkit_row.category,
-                "version": toolkit_row.version,
-                "created_at": toolkit_row.created_at.isoformat() if toolkit_row.created_at else None,
-                "updated_at": toolkit_row.updated_at.isoformat() if toolkit_row.updated_at else None,
-                "last_synced_at": toolkit_row.last_synced_at.isoformat() if toolkit_row.last_synced_at else None,
-                "stats": {
-                    "total_tools": len(tools_data),
-                    "actions": len(actions),
-                    "triggers": len(triggers)
-                },
-                "tools": {
-                    "actions": actions,
-                    "triggers": triggers
-                }
+        database = await get_database()
+        
+        # Get toolkit information
+        toolkit = await database.toolkits.find_one({
+            "slug": provider_slug,
+            "is_deprecated": False
+        })
+        
+        if not toolkit:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Provider '{provider_slug}' not found"
+            )
+        
+        # Get tools for this toolkit
+        tools_cursor = database.tools.find({
+            "toolkit_id": str(toolkit["_id"]),
+            "is_deprecated": False
+        }).sort([("tool_type", 1), ("name", 1)])
+        
+        tools_data = await tools_cursor.to_list(length=None)
+        
+        # Organize tools by type
+        actions = []
+        triggers = []
+        
+        for tool in tools_data:
+            tool_info = {
+                "id": str(tool["_id"]),
+                "slug": tool.get("slug"),
+                "name": tool["name"],
+                "display_name": tool.get("display_name"),
+                "description": tool["description"],
+                "type": tool["tool_type"],
+                "version": tool.get("version"),
+                "input_schema": tool.get("input_schema"),
+                "output_schema": tool.get("output_schema"),
+                "tags": tool.get("tags", [])
             }
             
-            return provider
+            if tool["tool_type"] == 'action':
+                actions.append(tool_info)
+            elif tool["tool_type"] == 'trigger':
+                triggers.append(tool_info)
+        
+        # Build provider response
+        provider = {
+            "id": str(toolkit["_id"]),
+            "slug": toolkit["slug"],
+            "name": toolkit["name"],
+            "description": toolkit["description"],
+            "logo_url": toolkit.get("logo_url"),
+            "website_url": toolkit.get("website_url"),
+            "category": toolkit.get("category"),
+            "version": toolkit.get("version"),
+            "created_at": toolkit.get("created_at").isoformat() if toolkit.get("created_at") else None,
+            "updated_at": toolkit.get("updated_at").isoformat() if toolkit.get("updated_at") else None,
+            "last_synced_at": toolkit.get("last_synced_at").isoformat() if toolkit.get("last_synced_at") else None,
+            "stats": {
+                "total_tools": len(tools_data),
+                "actions": len(actions),
+                "triggers": len(triggers)
+            },
+            "tools": {
+                "actions": actions,
+                "triggers": triggers
+            }
+        }
+        
+        return provider
             
     except HTTPException:
         raise

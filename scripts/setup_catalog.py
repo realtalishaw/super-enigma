@@ -2,6 +2,7 @@
 """
 Catalog system setup script.
 This script helps you set up the catalog system step by step.
+NOTE: This script is deprecated. Use the main setup.py script instead.
 """
 
 import os
@@ -31,7 +32,7 @@ def check_environment():
     
     required_vars = {
         "COMPOSIO_API_KEY": "Composio API key for fetching catalog data",
-        "DATABASE_URL": "PostgreSQL database connection URL",
+        "DATABASE_URL": "MongoDB database connection URL",
         "REDIS_URL": "Redis connection URL"
     }
     
@@ -51,7 +52,7 @@ def check_environment():
             if var == "COMPOSIO_API_KEY":
                 print(f"   export {var}=your_composio_api_key_here")
             elif var == "DATABASE_URL":
-                print(f"   export {var}=postgresql://user:password@localhost/workflow_automation")
+                print(f"   export {var}=mongodb+srv://user:pass@cluster.mongodb.net/db")
             elif var == "REDIS_URL":
                 print(f"   export {var}=redis://localhost:6379")
         return False
