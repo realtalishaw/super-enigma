@@ -9,15 +9,6 @@ from api.routes.catalog.tools import router as tools_router
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List, Dict, Any
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
-
-# Import database configuration
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from database.config import get_database_url
 
 logger = logging.getLogger(__name__)
 
@@ -27,24 +18,10 @@ catalog_router = APIRouter(prefix="/catalog", tags=["Catalog"])
 catalog_router.include_router(providers_router)
 catalog_router.include_router(tools_router)
 
-# Database engine and session factory
-_engine = None
-_session_factory = None
-
-async def get_database_session() -> AsyncSession:
-    """Get database session"""
-    global _engine, _session_factory
-    
-    if _engine is None:
-        database_url = get_database_url()
-        # Convert to async URL
-        async_url = database_url.replace('postgresql://', 'postgresql+asyncpg://')
-        _engine = create_async_engine(async_url, echo=False)
-        _session_factory = sessionmaker(
-            _engine, class_=AsyncSession, expire_on_commit=False
-        )
-    
-    return _session_factory()
+async def get_global_cache_service():
+    """Get the global cache service instance"""
+    from api.cache_service import get_global_cache_service
+    return await get_global_cache_service()
 
 @catalog_router.get("")
 async def get_catalog(
@@ -56,13 +33,138 @@ async def get_catalog(
     offset: Optional[int] = Query(0, ge=0, description="Number of toolkits to skip")
 ):
     """
-    Get the complete tool catalog with pagination.
+    Get the complete tool catalog with pagination using cached data.
     
     Returns toolkits with their associated tools (actions and triggers).
     Supports filtering by category, search terms, and tool availability.
     """
     try:
-        async with await get_database_session() as session:
+        # Get the global cache service
+        cache_service = await get_global_cache_service()
+        
+        if not cache_service.is_initialized():
+            logger.warning("Cache service not initialized, attempting to initialize")
+            await cache_service.initialize()
+        
+        # Get cached catalog data
+        catalog_cache = cache_service.get_catalog_cache()
+        
+        if not catalog_cache:
+            logger.warning("No catalog cache available, falling back to direct database query")
+            return await _fallback_get_catalog_database(search, category, has_actions, has_triggers, limit, offset)
+        
+        # Convert cached data to catalog items
+        catalog_items = []
+        for provider_slug, provider_data in catalog_cache.items():
+            actions = provider_data.get('actions', [])
+            triggers = provider_data.get('triggers', [])
+            
+            # Apply filters
+            if category and provider_data.get('category') != category:
+                continue
+            
+            if search:
+                search_lower = search.lower()
+                if (search_lower not in provider_data.get('name', '').lower() and
+                    search_lower not in provider_data.get('description', '').lower()):
+                    continue
+            
+            if has_actions is not None:
+                if has_actions and not actions:
+                    continue
+                if not has_actions and actions:
+                    continue
+            
+            if has_triggers is not None:
+                if has_triggers and not triggers:
+                    continue
+                if not has_triggers and triggers:
+                    continue
+            
+            # Create toolkit entry
+            toolkit = {
+                "id": provider_data.get('id'),
+                "slug": provider_slug,
+                "name": provider_data.get('name', provider_slug),
+                "description": provider_data.get('description'),
+                "icon_url": provider_data.get('logo_url'),
+                "website_url": provider_data.get('website_url'),
+                "category": provider_data.get('category'),
+                "version": provider_data.get('version'),
+                "created_at": provider_data.get('created_at'),
+                "updated_at": provider_data.get('updated_at'),
+                "stats": {
+                    "total_tools": len(actions) + len(triggers),
+                    "actions": len(actions),
+                    "triggers": len(triggers)
+                },
+                "tools": {
+                    "actions": actions,
+                    "triggers": triggers
+                }
+            }
+            
+            catalog_items.append(toolkit)
+        
+        # Sort by name
+        catalog_items.sort(key=lambda x: x['name'])
+        
+        # Apply pagination
+        total_count = len(catalog_items)
+        paginated_items = catalog_items[offset:offset + limit] if limit else catalog_items[offset:]
+        
+        return {
+            "items": paginated_items,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": limit and (offset + limit) < total_count,
+                "page": (offset // limit) + 1 if limit else 1,
+                "total_pages": (total_count + limit - 1) // limit if limit else 1
+            },
+            "filters": {
+                "search": search,
+                "category": category,
+                "has_actions": has_actions,
+                "has_triggers": has_triggers
+            },
+            "summary": {
+                "total_toolkits": len(paginated_items),
+                "total_tools": sum(item["stats"]["total_tools"] for item in paginated_items),
+                "total_actions": sum(item["stats"]["actions"] for item in paginated_items),
+                "total_triggers": sum(item["stats"]["triggers"] for item in paginated_items)
+            },
+            "source": "cache"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching catalog from cache: {e}")
+        # Fallback to database query
+        return await _fallback_get_catalog_database(search, category, has_actions, has_triggers, limit, offset)
+
+async def _fallback_get_catalog_database(
+    search: Optional[str],
+    category: Optional[str],
+    has_actions: Optional[bool],
+    has_triggers: Optional[bool],
+    limit: Optional[int],
+    offset: Optional[int]
+):
+    """Fallback to direct database query when cache is not available"""
+    try:
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy import text
+        from database.config import get_database_url
+        
+        # Create database connection
+        database_url = get_database_url()
+        async_url = database_url.replace('postgresql://', 'postgresql+asyncpg://')
+        engine = create_async_engine(async_url, echo=False)
+        session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        
+        async with session_factory() as session:
             # Build base query for counting total
             count_query = """
                 SELECT COUNT(DISTINCT t.toolkit_id) as total
@@ -93,7 +195,6 @@ async def get_catalog(
             """
             
             params = {}
-            conditions = []
             
             # Add search filter
             if search:
@@ -109,24 +210,21 @@ async def get_catalog(
                 base_query += category_condition
                 params["category"] = category
             
-            # Add ordering (GROUP BY is already in the base query)
-            
             # Get total count
             count_result = await session.execute(text(count_query), params)
             total_count = count_result.scalar()
             
-            # Add ordering and pagination to main query
+            # Add ordering and pagination
             base_query += " ORDER BY t.name"
             if limit:
                 base_query += " LIMIT :limit OFFSET :offset"
                 params["limit"] = limit
                 params["offset"] = offset
             
-            query = text(base_query)
-            result = await session.execute(query, params)
+            # Execute main query
+            result = await session.execute(text(base_query), params)
             rows = result.fetchall()
             
-            # Process results and get detailed tool information
             catalog_items = []
             for row in rows:
                 # Get detailed tools for this toolkit
@@ -225,22 +323,82 @@ async def get_catalog(
                     "total_tools": sum(item["stats"]["total_tools"] for item in catalog_items),
                     "total_actions": sum(item["stats"]["actions"] for item in catalog_items),
                     "total_triggers": sum(item["stats"]["triggers"] for item in catalog_items)
-                }
+                },
+                "source": "database_fallback"
             }
-            
+        
     except Exception as e:
-        logger.error(f"Error fetching catalog from database: {e}")
+        logger.error(f"Error in fallback catalog database query: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch catalog from database: {str(e)}"
+            detail=f"Failed to fetch catalog: {str(e)}"
         )
 
 @catalog_router.get("/categories")
 async def get_categories():
-    """Get all available toolkit categories"""
+    """Get all available toolkit categories using cached data"""
     try:
-        async with await get_database_session() as session:
-            # Get unique categories from toolkits table since toolkit_categories doesn't have display_order
+        # Get the global cache service
+        cache_service = await get_global_cache_service()
+        
+        if not cache_service.is_initialized():
+            logger.warning("Cache service not initialized, attempting to initialize")
+            await cache_service.initialize()
+        
+        # Get cached catalog data
+        catalog_cache = cache_service.get_catalog_cache()
+        
+        if not catalog_cache:
+            logger.warning("No catalog cache available, falling back to direct database query")
+            return await _fallback_get_categories_database()
+        
+        # Extract categories from cached data
+        categories_dict = {}
+        for provider_slug, provider_data in catalog_cache.items():
+            category = provider_data.get('category')
+            if category:
+                if category not in categories_dict:
+                    categories_dict[category] = 0
+                categories_dict[category] += 1
+        
+        # Convert to list and sort by count
+        categories = [
+            {
+                "slug": category,
+                "name": category,
+                "toolkit_count": count
+            }
+            for category, count in categories_dict.items()
+        ]
+        categories.sort(key=lambda x: x['toolkit_count'], reverse=True)
+        
+        return {
+            "categories": categories,
+            "total": len(categories),
+            "source": "cache"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching categories from cache: {e}")
+        # Fallback to database query
+        return await _fallback_get_categories_database()
+
+async def _fallback_get_categories_database():
+    """Fallback to direct database query for categories"""
+    try:
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy import text
+        from database.config import get_database_url
+        
+        # Create database connection
+        database_url = get_database_url()
+        async_url = database_url.replace('postgresql://', 'postgresql+asyncpg://')
+        engine = create_async_engine(async_url, echo=False)
+        session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        
+        async with session_factory() as session:
+            # Get unique categories from toolkits table
             query = text("""
                 SELECT 
                     category as slug,
@@ -265,14 +423,15 @@ async def get_categories():
             
             return {
                 "categories": categories,
-                "total": len(categories)
+                "total": len(categories),
+                "source": "database_fallback"
             }
-            
+        
     except Exception as e:
-        logger.error(f"Error fetching categories from database: {e}")
+        logger.error(f"Error in fallback categories database query: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch categories from database: {str(e)}"
+            detail=f"Failed to fetch categories: {str(e)}"
         )
 
 __all__ = [

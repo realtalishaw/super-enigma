@@ -5,39 +5,91 @@ Catalog providers routes.
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from bson import ObjectId
-
-# Import database configuration
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from database.config import get_database_url
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/providers", tags=["Catalog"])
 
-# Global MongoDB client
-_client: Optional[AsyncIOMotorClient] = None
-_database: Optional[AsyncIOMotorDatabase] = None
-
-async def get_database():
-    """Get MongoDB database instance"""
-    global _client, _database
-    
-    if _client is None:
-        database_url = get_database_url()
-        _client = AsyncIOMotorClient(database_url)
-        _database = _client.get_database()
-    
-    return _database
+async def get_global_cache_service():
+    """Get the global cache service instance"""
+    from api.cache_service import get_global_cache_service
+    return await get_global_cache_service()
 
 @router.get("/{provider_slug}")
 async def get_provider(provider_slug: str):
-    """Get toolkit information by slug with all associated tools"""
+    """Get toolkit information by slug with all associated tools using cached data"""
     try:
-        database = await get_database()
+        # Get the global cache service
+        cache_service = await get_global_cache_service()
+        
+        if not cache_service.is_initialized():
+            logger.warning("Cache service not initialized, attempting to initialize")
+            await cache_service.initialize()
+        
+        # Get cached catalog data
+        catalog_cache = cache_service.get_catalog_cache()
+        
+        if not catalog_cache:
+            logger.warning("No catalog cache available, falling back to direct database query")
+            return await _fallback_get_provider_database(provider_slug)
+        
+        # Look for provider in cached data
+        if provider_slug not in catalog_cache:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Provider '{provider_slug}' not found"
+            )
+        
+        provider_data = catalog_cache[provider_slug]
+        
+        # Get actions and triggers
+        actions = provider_data.get('actions', [])
+        triggers = provider_data.get('triggers', [])
+        
+        # Build provider response
+        provider = {
+            "id": provider_data.get('id'),
+            "slug": provider_slug,
+            "name": provider_data.get('name', provider_slug),
+            "description": provider_data.get('description'),
+            "logo_url": provider_data.get('logo_url'),
+            "website_url": provider_data.get('website_url'),
+            "category": provider_data.get('category'),
+            "version": provider_data.get('version'),
+            "created_at": provider_data.get('created_at'),
+            "updated_at": provider_data.get('updated_at'),
+            "last_synced_at": provider_data.get('last_synced_at'),
+            "stats": {
+                "total_tools": len(actions) + len(triggers),
+                "actions": len(actions),
+                "triggers": len(triggers)
+            },
+            "tools": {
+                "actions": actions,
+                "triggers": triggers
+            },
+            "source": "cache"
+        }
+        
+        return provider
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching provider '{provider_slug}' from cache: {e}")
+        # Fallback to database query
+        return await _fallback_get_provider_database(provider_slug)
+
+async def _fallback_get_provider_database(provider_slug: str):
+    """Fallback to direct database query for provider"""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        from database.config import get_database_url
+        
+        # Create database connection
+        database_url = get_database_url()
+        client = AsyncIOMotorClient(database_url)
+        database = client.get_database()
         
         # Get toolkit information
         toolkit = await database.toolkits.find_one({
@@ -46,6 +98,7 @@ async def get_provider(provider_slug: str):
         })
         
         if not toolkit:
+            client.close()
             raise HTTPException(
                 status_code=404,
                 detail=f"Provider '{provider_slug}' not found"
@@ -58,6 +111,9 @@ async def get_provider(provider_slug: str):
         }).sort([("tool_type", 1), ("name", 1)])
         
         tools_data = await tools_cursor.to_list(length=None)
+        
+        # Close database connection
+        client.close()
         
         # Organize tools by type
         actions = []
@@ -103,7 +159,8 @@ async def get_provider(provider_slug: str):
             "tools": {
                 "actions": actions,
                 "triggers": triggers
-            }
+            },
+            "source": "database_fallback"
         }
         
         return provider
@@ -111,7 +168,7 @@ async def get_provider(provider_slug: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching provider '{provider_slug}': {e}")
+        logger.error(f"Error fetching provider '{provider_slug}' from database: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch provider: {str(e)}"
