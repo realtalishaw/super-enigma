@@ -20,6 +20,7 @@ from .response_parser import ResponseParser
 from .workflow_validator import WorkflowValidator
 
 from core.config import settings
+from core.semantic_search.search_service import SemanticSearchService
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,12 @@ class DSLGeneratorService:
         self.ai_client = AIClient(anthropic_api_key)
         self.response_parser = ResponseParser()
         self.workflow_validator = WorkflowValidator()
+        
+        # Initialize semantic search service
+        from pathlib import Path
+        project_root = Path(__file__).parent.parent.parent
+        index_path = project_root / "data" / "semantic_index"
+        self.semantic_search = SemanticSearchService(index_path=index_path)
 
         
         # Groq configuration for tool retrieval (from config)
@@ -204,11 +211,12 @@ class DSLGeneratorService:
     
     async def _retrieve_relevant_tools(self, request: GenerationRequest) -> Optional[Dict[str, Any]]:
         """
-        Step 1: Intelligently retrieve relevant tools from the catalog.
+        Step 1: Intelligently retrieve relevant tools using semantic search + Groq LLM analysis.
         
         This method implements the "Retrieval" step of the RAG workflow:
-        - If selected_apps provided: Use strict keyword-based search
-        - If only user_prompt: Use Groq LLM to analyze and find relevant tools
+        1. Semantic search finds potentially relevant tools
+        2. Groq LLM analyzes those tools and selects the best ones for the specific task
+        3. If selected_apps provided: Filters results to only those providers
         
         Args:
             request: Generation request with user prompt and context
@@ -217,10 +225,367 @@ class DSLGeneratorService:
             Pruned catalog context with only relevant tools, or None if failed
         """
         try:
+            logger.info(f"Using semantic search + Groq LLM analysis for tool retrieval")
+            logger.info(f"User prompt: {request.user_prompt[:100]}...")
+            if request.selected_apps:
+                logger.info(f"Selected apps filter: {request.selected_apps}")
+            
+            # Step 1: Use semantic search to find potentially relevant tools
+            search_results = self.semantic_search.search(
+                query=request.user_prompt,
+                k=100,  # Get more results for Groq to analyze
+                filter_types=["action", "trigger"],  # Only get tools, not providers
+                filter_providers=request.selected_apps if request.selected_apps else None
+            )
+            
+            if not search_results:
+                logger.warning("No semantic search results found")
+                return None
+            
+            logger.info(f"Semantic search found {len(search_results)} potentially relevant tools")
+            
+            # Convert semantic search results to the expected catalog format
+            semantic_context = self._convert_semantic_results_to_catalog(search_results)
+            
+            # Step 2: Use Groq LLM to analyze and select the best tools for the specific task
+            if self.groq_api_key and not request.selected_apps:
+                logger.info("Using Groq LLM to analyze and select best tools from semantic results")
+                pruned_context = await self._groq_analyze_semantic_results(request.user_prompt, semantic_context)
+            else:
+                logger.info("Skipping Groq analysis (no API key or selected apps provided)")
+                pruned_context = semantic_context
+            
+            # Apply tool limits to keep context concise
+            limited_context = self._limit_tools_for_context(pruned_context)
+            
+            logger.info(f"Final pruned context: {len(limited_context.get('triggers', []))} triggers, {len(limited_context.get('actions', []))} actions")
+            
+            return limited_context
+                
+        except Exception as e:
+            logger.error(f"Semantic + Groq tool retrieval failed: {e}")
+            # Fallback to basic search if semantic search fails
+            logger.info("Falling back to basic search...")
+            return await self._fallback_basic_search_from_catalog(request)
+    
+    def _convert_semantic_results_to_catalog(self, search_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Convert semantic search results to the expected catalog format.
+        
+        Args:
+            search_results: List of semantic search results
+            
+        Returns:
+            Catalog format with triggers, actions, and providers
+        """
+        pruned_context = {
+            'triggers': [],
+            'actions': [],
+            'providers': {}
+        }
+        
+        for result in search_results:
+            item = result['item']
+            item_type = item.get('type', '')
+            provider_id = item.get('provider_id', '')
+            provider_name = item.get('provider_name', '')
+            
+            # Add provider info if not already present
+            if provider_id and provider_id not in pruned_context['providers']:
+                pruned_context['providers'][provider_id] = {
+                    'name': provider_name or provider_id,
+                    'description': item.get('description', ''),
+                    'category': item.get('category', '')
+                }
+            
+            # Convert to catalog format based on type
+            if item_type == 'trigger':
+                catalog_trigger = {
+                    'slug': item.get('slug', ''),
+                    'name': item.get('name', ''),
+                    'description': item.get('description', ''),
+                    'toolkit_slug': provider_id,
+                    'toolkit_name': provider_name,
+                    'trigger_slug': item.get('slug', ''),
+                    'metadata': item.get('metadata', {}),
+                    'similarity_score': result.get('similarity_score', 0.0)
+                }
+                pruned_context['triggers'].append(catalog_trigger)
+                
+            elif item_type == 'action':
+                catalog_action = {
+                    'slug': item.get('slug', ''),
+                    'name': item.get('name', ''),
+                    'description': item.get('description', ''),
+                    'toolkit_slug': provider_id,
+                    'toolkit_name': provider_name,
+                    'action_slug': item.get('slug', ''),
+                    'metadata': item.get('metadata', {}),
+                    'similarity_score': result.get('similarity_score', 0.0)
+                }
+                pruned_context['actions'].append(catalog_action)
+        
+        # Sort by similarity score (highest first)
+        pruned_context['triggers'].sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        pruned_context['actions'].sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        
+        logger.info(f"Converted {len(search_results)} semantic results to {len(pruned_context['triggers'])} triggers and {len(pruned_context['actions'])} actions")
+        
+        return pruned_context
+    
+    async def _groq_analyze_semantic_results(self, user_prompt: str, semantic_context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Use Groq LLM to analyze semantic search results and select the best tools for the specific task.
+        
+        Args:
+            user_prompt: The user's natural language prompt
+            semantic_context: Context from semantic search results
+            
+        Returns:
+            Refined catalog context with the best tools selected by Groq
+        """
+        try:
+            # Prepare the tools for Groq analysis
+            all_tools = []
+            
+            # Add triggers
+            for trigger in semantic_context.get('triggers', []):
+                all_tools.append({
+                    'type': 'trigger',
+                    'name': trigger.get('name', ''),
+                    'description': trigger.get('description', ''),
+                    'toolkit': trigger.get('toolkit_name', ''),
+                    'slug': trigger.get('slug', ''),
+                    'similarity_score': trigger.get('similarity_score', 0.0)
+                })
+            
+            # Add actions
+            for action in semantic_context.get('actions', []):
+                all_tools.append({
+                    'type': 'action',
+                    'name': action.get('name', ''),
+                    'description': action.get('description', ''),
+                    'toolkit': action.get('toolkit_name', ''),
+                    'slug': action.get('slug', ''),
+                    'similarity_score': action.get('similarity_score', 0.0)
+                })
+            
+            if not all_tools:
+                logger.warning("No tools to analyze with Groq")
+                return semantic_context
+            
+            # Create Groq prompt for tool analysis
+            groq_prompt = self._build_groq_tool_analysis_prompt(user_prompt, all_tools)
+            
+            # Call Groq API
+            logger.info(f"Calling Groq API to analyze {len(all_tools)} tools...")
+            response = await self._call_groq_api(groq_prompt)
+            
+            if not response:
+                logger.warning("Groq API call failed, returning semantic results as-is")
+                return semantic_context
+            
+            # Parse Groq response to get selected tools
+            selected_tools = self._parse_groq_tool_selection(response)
+            
+            if not selected_tools:
+                logger.warning("Failed to parse Groq response, returning semantic results as-is")
+                return semantic_context
+            
+            # Filter the semantic context based on Groq selection
+            refined_context = self._filter_context_by_groq_selection(semantic_context, selected_tools)
+            
+            logger.info(f"Groq analysis selected {len(selected_tools)} tools from {len(all_tools)} semantic results")
+            
+            return refined_context
+            
+        except Exception as e:
+            logger.error(f"Groq analysis failed: {e}")
+            return semantic_context
+    
+    def _build_groq_tool_analysis_prompt(self, user_prompt: str, tools: List[Dict[str, Any]]) -> str:
+        """Build the prompt for Groq to analyze and select the best tools."""
+        
+        # Group tools by type for better organization
+        triggers = [t for t in tools if t['type'] == 'trigger']
+        actions = [t for t in tools if t['type'] == 'action']
+        
+        prompt = f"""You are an expert workflow automation analyst. Your task is to analyze a user's request and select the most relevant tools from a list of semantically similar tools.
+
+USER REQUEST: "{user_prompt}"
+
+AVAILABLE TOOLS:
+
+TRIGGERS ({len(triggers)} available):
+"""
+        
+        for i, trigger in enumerate(triggers, 1):
+            prompt += f"{i}. {trigger['name']} ({trigger['toolkit']})\n"
+            prompt += f"   Description: {trigger['description'][:200]}...\n"
+            prompt += f"   Similarity Score: {trigger['similarity_score']:.3f}\n\n"
+        
+        prompt += f"\nACTIONS ({len(actions)} available):\n"
+        
+        for i, action in enumerate(actions, 1):
+            prompt += f"{i}. {action['name']} ({action['toolkit']})\n"
+            prompt += f"   Description: {action['description'][:200]}...\n"
+            prompt += f"   Similarity Score: {action['similarity_score']:.3f}\n\n"
+        
+        prompt += """
+ANALYSIS TASK:
+1. Analyze the user's request to understand what they want to accomplish
+2. Select the most relevant triggers and actions that would be needed for this workflow
+3. Consider both semantic similarity and practical workflow requirements
+4. Aim for 3-8 total tools (mix of triggers and actions)
+5. Prioritize tools with higher similarity scores but also consider workflow logic
+
+RESPONSE FORMAT:
+Return a JSON object with this exact structure:
+{
+  "selected_triggers": [
+    {
+      "name": "exact tool name",
+      "toolkit": "exact toolkit name",
+      "reason": "why this trigger is needed"
+    }
+  ],
+  "selected_actions": [
+    {
+      "name": "exact tool name", 
+      "toolkit": "exact toolkit name",
+      "reason": "why this action is needed"
+    }
+  ],
+  "analysis": "Brief explanation of your selection reasoning"
+}
+
+IMPORTANT: Use the exact tool names and toolkit names as shown in the list above."""
+        
+        return prompt
+    
+    async def _call_groq_api(self, prompt: str) -> Optional[str]:
+        """Call the Groq API to analyze tools."""
+        try:
+            import httpx
+            
+            headers = {
+                "Authorization": f"Bearer {self.groq_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": "llama-3.1-8b-instant",  # Current fast model for analysis
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.1,  # Low temperature for consistent analysis
+                "max_tokens": 2000
+            }
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.groq_base_url}/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return result["choices"][0]["message"]["content"]
+                else:
+                    logger.error(f"Groq API error: {response.status_code} - {response.text}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Groq API call failed: {e}")
+            return None
+    
+    def _parse_groq_tool_selection(self, response: str) -> List[Dict[str, Any]]:
+        """Parse Groq response to extract selected tools."""
+        try:
+            import json
+            import re
+            
+            # Try to extract JSON from the response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if not json_match:
+                logger.error("No JSON found in Groq response")
+                return []
+            
+            json_str = json_match.group(0)
+            data = json.loads(json_str)
+            
+            selected_tools = []
+            
+            # Add selected triggers
+            for trigger in data.get('selected_triggers', []):
+                selected_tools.append({
+                    'name': trigger.get('name', ''),
+                    'toolkit': trigger.get('toolkit', ''),
+                    'type': 'trigger',
+                    'reason': trigger.get('reason', '')
+                })
+            
+            # Add selected actions
+            for action in data.get('selected_actions', []):
+                selected_tools.append({
+                    'name': action.get('name', ''),
+                    'toolkit': action.get('toolkit', ''),
+                    'type': 'action',
+                    'reason': action.get('reason', '')
+                })
+            
+            logger.info(f"Parsed {len(selected_tools)} selected tools from Groq response")
+            return selected_tools
+            
+        except Exception as e:
+            logger.error(f"Failed to parse Groq response: {e}")
+            return []
+    
+    def _filter_context_by_groq_selection(self, semantic_context: Dict[str, Any], selected_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Filter the semantic context based on Groq's tool selection."""
+        
+        # Create sets of selected tool names and toolkits for efficient lookup
+        selected_triggers = {(t['name'], t['toolkit']) for t in selected_tools if t['type'] == 'trigger'}
+        selected_actions = {(t['name'], t['toolkit']) for t in selected_tools if t['type'] == 'action'}
+        
+        # Filter triggers
+        filtered_triggers = []
+        for trigger in semantic_context.get('triggers', []):
+            trigger_key = (trigger.get('name', ''), trigger.get('toolkit_name', ''))
+            if trigger_key in selected_triggers:
+                filtered_triggers.append(trigger)
+        
+        # Filter actions
+        filtered_actions = []
+        for action in semantic_context.get('actions', []):
+            action_key = (action.get('name', ''), action.get('toolkit_name', ''))
+            if action_key in selected_actions:
+                filtered_actions.append(action)
+        
+        # Build refined context
+        refined_context = {
+            'triggers': filtered_triggers,
+            'actions': filtered_actions,
+            'providers': semantic_context.get('providers', {})
+        }
+        
+        logger.info(f"Filtered context: {len(filtered_triggers)} triggers, {len(filtered_actions)} actions")
+        
+        return refined_context
+    
+    async def _fallback_basic_search_from_catalog(self, request: GenerationRequest) -> Optional[Dict[str, Any]]:
+        """
+        Fallback method that uses the original catalog-based search if semantic search fails.
+        """
+        try:
             processed_catalog = await self.catalog_manager.get_catalog_data()
             
             if not processed_catalog:
-                logger.error("No catalog cache available for tool retrieval")
+                logger.error("No catalog cache available for fallback search")
                 return None
             
             # Get processed triggers and actions from catalog manager
@@ -234,28 +599,16 @@ class DSLGeneratorService:
                 'actions': processed_actions
             }
             
-            # Debug: Log the catalog cache structure
-            logger.info(f"Catalog cache type: {type(processed_catalog)}")
-            logger.info(f"Catalog cache length: {len(processed_catalog) if hasattr(processed_catalog, '__len__') else 'N/A'}")
-            if isinstance(processed_catalog, dict):
-                logger.info(f"Catalog cache keys: {list(processed_catalog.keys())[:5]}...")
-            elif isinstance(processed_catalog, list):
-                logger.info(f"Catalog cache first item type: {type(processed_catalog[0]) if processed_catalog else 'N/A'}")
-                if processed_catalog:
-                    logger.info(f"Catalog cache first item keys: {list(processed_catalog[0].keys()) if isinstance(processed_catalog[0], dict) else 'N/A'}")
-            
-            # Case 1: Strict keyword-based search when selected_apps provided
+            # Use the original search methods as fallback
             if request.selected_apps:
-                logger.info(f"Using strict keyword-based search for selected apps: {request.selected_apps}")
+                logger.info(f"Fallback: Using strict keyword-based search for selected apps: {request.selected_apps}")
                 return self._strict_keyword_search(processed_catalog, request.selected_apps)
-            
-            # Case 2: LLM-based intelligent search when only user_prompt provided
             else:
-                logger.info("Using LLM-based intelligent search for user prompt")
+                logger.info("Fallback: Using LLM-based intelligent search for user prompt")
                 return await self._llm_based_tool_search(processed_catalog, request.user_prompt)
                 
         except Exception as e:
-            logger.error(f"Tool retrieval failed: {e}")
+            logger.error(f"Fallback search also failed: {e}")
             return None
     
     def _limit_tools_for_context(self, pruned_context: Dict[str, Any]) -> Dict[str, Any]:

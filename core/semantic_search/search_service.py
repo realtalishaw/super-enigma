@@ -390,7 +390,7 @@ class SemanticSearchService:
         
         if filter_providers:
             filtered = [item for item in filtered 
-                       if item.get("provider_name") in filter_providers]
+                       if item.get("provider_id") in filter_providers]
         
         return filtered
     
