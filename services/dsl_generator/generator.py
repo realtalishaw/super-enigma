@@ -69,9 +69,9 @@ class DSLGeneratorService:
         self.claude_rate_limit_delay = settings.claude_rate_limit_delay
         self.max_rate_limit_delay = settings.max_rate_limit_delay
     
-    def set_global_cache(self, catalog_cache: Dict[str, Any]):
+    def set_global_cache(self, processed_catalog: Dict[str, Any]):
         """Set the catalog cache from the global cache service"""
-        self.catalog_manager.set_global_cache(catalog_cache)
+        self.catalog_manager.set_global_cache(processed_catalog)
     
     async def initialize(self):
         """Initialize all service components"""
@@ -217,31 +217,42 @@ class DSLGeneratorService:
             Pruned catalog context with only relevant tools, or None if failed
         """
         try:
-            catalog_cache = self.catalog_manager._catalog_cache
+            processed_catalog = await self.catalog_manager.get_catalog_data()
             
-            if not catalog_cache:
+            if not processed_catalog:
                 logger.error("No catalog cache available for tool retrieval")
                 return None
             
+            # Get processed triggers and actions from catalog manager
+            processed_triggers = self.catalog_manager.extract_triggers(processed_catalog)
+            processed_actions = self.catalog_manager.extract_actions(processed_catalog)
+            
+            # Create a processed catalog structure
+            processed_catalog = {
+                'providers': processed_catalog,
+                'triggers': processed_triggers,
+                'actions': processed_actions
+            }
+            
             # Debug: Log the catalog cache structure
-            logger.info(f"Catalog cache type: {type(catalog_cache)}")
-            logger.info(f"Catalog cache length: {len(catalog_cache) if hasattr(catalog_cache, '__len__') else 'N/A'}")
-            if isinstance(catalog_cache, dict):
-                logger.info(f"Catalog cache keys: {list(catalog_cache.keys())[:5]}...")
-            elif isinstance(catalog_cache, list):
-                logger.info(f"Catalog cache first item type: {type(catalog_cache[0]) if catalog_cache else 'N/A'}")
-                if catalog_cache:
-                    logger.info(f"Catalog cache first item keys: {list(catalog_cache[0].keys()) if isinstance(catalog_cache[0], dict) else 'N/A'}")
+            logger.info(f"Catalog cache type: {type(processed_catalog)}")
+            logger.info(f"Catalog cache length: {len(processed_catalog) if hasattr(processed_catalog, '__len__') else 'N/A'}")
+            if isinstance(processed_catalog, dict):
+                logger.info(f"Catalog cache keys: {list(processed_catalog.keys())[:5]}...")
+            elif isinstance(processed_catalog, list):
+                logger.info(f"Catalog cache first item type: {type(processed_catalog[0]) if processed_catalog else 'N/A'}")
+                if processed_catalog:
+                    logger.info(f"Catalog cache first item keys: {list(processed_catalog[0].keys()) if isinstance(processed_catalog[0], dict) else 'N/A'}")
             
             # Case 1: Strict keyword-based search when selected_apps provided
             if request.selected_apps:
                 logger.info(f"Using strict keyword-based search for selected apps: {request.selected_apps}")
-                return self._strict_keyword_search(catalog_cache, request.selected_apps)
+                return self._strict_keyword_search(processed_catalog, request.selected_apps)
             
             # Case 2: LLM-based intelligent search when only user_prompt provided
             else:
                 logger.info("Using LLM-based intelligent search for user prompt")
-                return await self._llm_based_tool_search(catalog_cache, request.user_prompt)
+                return await self._llm_based_tool_search(processed_catalog, request.user_prompt)
                 
         except Exception as e:
             logger.error(f"Tool retrieval failed: {e}")
@@ -350,12 +361,12 @@ class DSLGeneratorService:
         
         return limited_context
     
-    def _strict_keyword_search(self, catalog_cache: Dict[str, Any], selected_apps: List[str]) -> Optional[Dict[str, Any]]:
+    def _strict_keyword_search(self, processed_catalog: Dict[str, Any], selected_apps: List[str]) -> Optional[Dict[str, Any]]:
         """
         Perform strict keyword-based search for selected apps.
         
         Args:
-            catalog_cache: Full catalog cache (can be dict or list)
+            processed_catalog: Processed catalog with triggers, actions, and providers at top level
             selected_apps: List of app/toolkit slugs to search for
             
         Returns:
@@ -367,144 +378,51 @@ class DSLGeneratorService:
             'providers': {}
         }
         
-        # Handle both dict and list catalog structures
-        if isinstance(catalog_cache, dict):
-            # Original dict structure
-            for app_slug in selected_apps:
-                if app_slug in catalog_cache:
-                    app_data = catalog_cache[app_slug]
-                    
-                    # Add provider info
-                    pruned_context['providers'][app_slug] = {
-                        'name': app_data.get('name', app_slug),
-                        'description': app_data.get('description', ''),
-                        'category': app_data.get('category', '')
-                    }
-                    
-                    # Add triggers
-                    try:
-                        triggers = app_data.get('triggers', {})
-                        if isinstance(triggers, dict):
-                            # Dict structure: {trigger_slug: trigger_data}
-                            for trigger_slug, trigger_data in triggers.items():
-                                pruned_context['triggers'].append({
-                                    'toolkit_slug': app_slug,
-                                    'trigger_slug': trigger_slug,
-                                    **trigger_data
-                                })
-                        elif isinstance(triggers, list):
-                            # List structure: [trigger_data, trigger_data, ...]
-                            for trigger_data in triggers:
-                                if isinstance(trigger_data, dict):
-                                    # Use the slug field from database
-                                    trigger_slug = trigger_data.get('slug') or 'unknown_trigger'
-                                    pruned_context['triggers'].append({
-                                        'toolkit_slug': app_slug,
-                                        'trigger_slug': trigger_slug,
-                                        **trigger_data
-                                    })
-                    except Exception as e:
-                        logger.warning(f"Error processing triggers for {app_slug}: {e}")
-                    
-                    # Add actions
-                    try:
-                        actions = app_data.get('actions', {})
-                        if isinstance(actions, dict):
-                            # Dict structure: {action_slug: action_data}
-                            for action_slug, action_data in actions.items():
-                                pruned_context['actions'].append({
-                                    'toolkit_slug': app_slug,
-                                    'action_slug': action_slug,
-                                    **action_data
-                                })
-                        elif isinstance(actions, list):
-                            # List structure: [action_data, action_data, ...]
-                            for action_data in actions:
-                                if isinstance(action_data, dict):
-                                    # Use the slug field from database
-                                    action_slug = action_data.get('slug') or 'unknown_action'
-                                    pruned_context['actions'].append({
-                                        'toolkit_slug': app_slug,
-                                        'action_slug': action_slug,
-                                        **action_data
-                                    })
-                    except Exception as e:
-                        logger.warning(f"Error processing actions for {app_slug}: {e}")
+        # Get the processed data
+        all_triggers = processed_catalog.get('triggers', [])
+        all_actions = processed_catalog.get('actions', [])
+        all_providers = processed_catalog.get('providers', {})
         
-        elif isinstance(catalog_cache, list):
-            # List structure - search by slug in the list
-            for app_data in catalog_cache:
-                if isinstance(app_data, dict):
-                    app_slug = app_data.get('slug') or app_data.get('toolkit_slug')
-                    if app_slug in selected_apps:
-                        # Add provider info
-                        pruned_context['providers'][app_slug] = {
-                            'name': app_data.get('name', app_slug),
-                            'description': app_data.get('description', ''),
-                            'category': app_data.get('category', '')
-                        }
-                        
-                        # Add triggers
-                        triggers = app_data.get('triggers', [])
-                        if isinstance(triggers, list):
-                            for trigger_data in triggers:
-                                if isinstance(trigger_data, dict):
-                                    pruned_context['triggers'].append({
-                                        'toolkit_slug': app_slug,
-                                        'trigger_slug': trigger_data.get('slug', ''),
-                                        **trigger_data
-                                    })
-                        
-                        # Add actions
-                        actions = app_data.get('actions', [])
-                        if isinstance(actions, list):
-                            for action_data in actions:
-                                if isinstance(action_data, dict):
-                                    pruned_context['actions'].append({
-                                        **action_data,  # Spread the original data first
-                                        'toolkit_slug': app_slug,
-                                        'action_slug': action_data.get('slug', '')  # Override with the slug last
-                                    })
+        # Filter triggers by selected apps
+        for trigger in all_triggers:
+            toolkit_slug = trigger.get('toolkit_slug')
+            if toolkit_slug in selected_apps:
+                pruned_context['triggers'].append(trigger)
+        
+        # Filter actions by selected apps
+        for action in all_actions:
+            toolkit_slug = action.get('toolkit_slug')
+            if toolkit_slug in selected_apps:
+                pruned_context['actions'].append(action)
+        
+        # Add provider info for selected apps
+        for app_slug in selected_apps:
+            if app_slug in all_providers:
+                provider_data = all_providers[app_slug]
+                pruned_context['providers'][app_slug] = {
+                    'name': provider_data.get('name', app_slug),
+                    'description': provider_data.get('description', ''),
+                    'category': provider_data.get('category', '')
+                }
         
         logger.info(f"Strict search found {len(pruned_context['triggers'])} triggers and {len(pruned_context['actions'])} actions")
         
-        # Log some examples of what was found
+        # Log sample of found tools
         if pruned_context['triggers']:
-            sample_triggers = [t.get('trigger_slug', 'unknown') for t in pruned_context['triggers'][:3]]
+            sample_triggers = [t.get('slug', 'unknown') for t in pruned_context['triggers'][:3]]
             logger.info(f"Sample triggers found: {sample_triggers}")
-            # Count how many have meaningful slugs
-            meaningful_triggers = [t for t in pruned_context['triggers'] if t.get('trigger_slug') and not t.get('trigger_slug').startswith('unknown')]
-            logger.info(f"Triggers with meaningful slugs: {len(meaningful_triggers)}/{len(pruned_context['triggers'])}")
-            
-            # Log any triggers missing slugs
-            missing_slug_triggers = [t for t in pruned_context['triggers'] if not t.get('trigger_slug')]
-            if missing_slug_triggers:
-                logger.warning(f"Found {len(missing_slug_triggers)} triggers without trigger_slug")
-                for trigger in missing_slug_triggers[:3]:
-                    logger.warning(f"  Trigger: {trigger.get('name')} - missing trigger_slug")
-                    
         if pruned_context['actions']:
-            sample_actions = [a.get('action_slug', 'unknown') for a in pruned_context['actions'][:3]]
+            sample_actions = [a.get('slug', 'unknown') for a in pruned_context['actions'][:3]]
             logger.info(f"Sample actions found: {sample_actions}")
-            # Count how many have meaningful slugs
-            meaningful_actions = [a for a in pruned_context['actions'] if a.get('action_slug') and not a.get('action_slug').startswith('unknown')]
-            logger.info(f"Actions with meaningful slugs: {len(meaningful_actions)}/{len(pruned_context['actions'])}")
-            
-            # Log any actions missing slugs
-            missing_slug_actions = [a for a in pruned_context['actions'] if not a.get('action_slug')]
-            if missing_slug_actions:
-                logger.warning(f"Found {len(missing_slug_actions)} actions without action_slug")
-                for action in missing_slug_actions[:3]:
-                    logger.warning(f"  Action: {action.get('name')} - missing action_slug")
         
         return pruned_context
     
-    async def _llm_based_tool_search(self, catalog_cache: Dict[str, Any], user_prompt: str) -> Optional[Dict[str, Any]]:
+    async def _llm_based_tool_search(self, processed_catalog: Dict[str, Any], user_prompt: str) -> Optional[Dict[str, Any]]:
         """
         Uses Groq LLM to analyze the user prompt and find relevant tools.
         
         Args:
-            catalog_cache: The full catalog cache.
+            processed_catalog: Processed catalog with triggers, actions, and providers at top level.
             user_prompt: The user's natural language prompt.
             
         Returns:
@@ -512,20 +430,37 @@ class DSLGeneratorService:
         """
         if not self.groq_api_key:
             logger.warning("No Groq API key available, falling back to basic search")
-            return self._fallback_basic_search(catalog_cache, user_prompt)
+            return self._fallback_basic_search(processed_catalog, user_prompt)
         
         logger.info("Groq API key found, performing intelligent tool search...")
         
-        # Prepare available toolkits for the prompt
+        # Prepare available toolkits for the prompt (limit to first 50 to avoid payload size issues)
         available_toolkits = []
-        if isinstance(catalog_cache, dict):
-            for slug, data in catalog_cache.items():
-                available_toolkits.append({
-                    'slug': slug,
-                    'description': data.get('description', '')
-                })
-        elif isinstance(catalog_cache, list):
-            for item in catalog_cache:
+        if isinstance(processed_catalog, dict):
+            # Handle the processed catalog structure with providers, triggers, actions
+            if 'providers' in processed_catalog:
+                # The providers key contains the raw catalog data
+                providers_data = processed_catalog.get('providers', {})
+                for slug, data in providers_data.items():
+                    if isinstance(data, dict) and 'name' in data:  # Skip non-provider keys
+                        available_toolkits.append({
+                            'slug': slug,
+                            'description': data.get('description', '')
+                        })
+                        if len(available_toolkits) >= 50:  # Limit to 50 providers
+                            break
+            else:
+                # Handle legacy format where each key is a provider slug
+                for slug, data in processed_catalog.items():
+                    if isinstance(data, dict) and 'name' in data:  # Skip non-provider keys
+                        available_toolkits.append({
+                            'slug': slug,
+                            'description': data.get('description', '')
+                        })
+                        if len(available_toolkits) >= 50:  # Limit to 50 providers
+                            break
+        elif isinstance(processed_catalog, list):
+            for item in processed_catalog:
                 if isinstance(item, dict):
                     slug = item.get('slug') or item.get('toolkit_slug')
                     if slug:
@@ -536,69 +471,58 @@ class DSLGeneratorService:
         
         if not available_toolkits:
             logger.warning("No toolkits available for Groq analysis")
-            return self._fallback_basic_search(catalog_cache, user_prompt)
+            return self._fallback_basic_search(processed_catalog, user_prompt)
         
         # Use the original Groq prompt method
-        prompt = self._build_groq_tool_selection_prompt(user_prompt, available_toolkits)
+        prompt = await self._build_groq_tool_selection_prompt(user_prompt, available_toolkits)
         
-        # Prepare Groq API request
-        headers = {
-            "Authorization": f"Bearer {self.groq_api_key}",
-            "Content-Type": "application/json"
-        }
-        
+        # Prepare Groq API request using proper client
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.groq_base_url}/chat/completions",
-                    headers=headers,
-                    json={
-                        "model": self.groq_model,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 1,
-                        "max_completion_tokens": 8192,
-                        "top_p": 1,
-                        "reasoning_effort": "medium",
-                        "stream": False,
-                        "response_format": {"type": "json_object"},
-                        "stop": None
-                    },
-                    timeout=30.0
-                )
-                response.raise_for_status()
-                groq_response = response.json()
-                logger.info(f"Groq API response received: {groq_response}")
-                
-                # Extract the required toolkits from Groq response
-                content = groq_response.get("choices", [{}])[0].get("message", {}).get("content", "")
-                try:
-                    llm_data = json.loads(content)
-                    required_toolkits = llm_data.get("required_toolkits", [])
-                    
-                    if not required_toolkits:
-                        logger.warning("Groq returned no required toolkits")
-                        return self._fallback_basic_search(catalog_cache, user_prompt)
-                    
-                    logger.info(f"Groq identified required toolkits: {required_toolkits}")
-                    
-                    # Use the strict keyword search with the identified toolkits
-                    return self._strict_keyword_search(catalog_cache, required_toolkits)
-                    
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse Groq response JSON: {e}")
-                    logger.error(f"Raw Groq response: {content}")
-                    return self._fallback_basic_search(catalog_cache, user_prompt)
-                    
+            from groq import Groq
+            client = Groq(api_key=self.groq_api_key)
+            
+            response = client.chat.completions.create(
+                model=self.groq_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=1,
+                max_completion_tokens=8192,
+                top_p=1,
+                reasoning_effort="medium",
+                stream=False,
+                response_format={"type": "json_object"},
+                stop=None
+            )
+            
+            # Extract the response content
+            groq_response_text = response.choices[0].message.content
+            logger.info(f"Groq API response received: {groq_response_text}")
+            
+            # Parse the JSON response
+            import json
+            groq_response = json.loads(groq_response_text)
+            
+            # Extract the required toolkits from Groq response
+            required_toolkits = groq_response.get("required_toolkits", [])
+            
+            if not required_toolkits:
+                logger.warning("Groq returned no required toolkits")
+                return self._fallback_basic_search(processed_catalog, user_prompt)
+            
+            logger.info(f"Groq identified required toolkits: {required_toolkits}")
+            
+            # Use the strict keyword search with the identified toolkits
+            return self._strict_keyword_search(processed_catalog, required_toolkits)
+            
         except Exception as e:
             logger.error(f"Groq API call failed: {e}")
-            return self._fallback_basic_search(catalog_cache, user_prompt)
+            return self._fallback_basic_search(processed_catalog, user_prompt)
     
-    def _fallback_basic_search(self, catalog_cache: Dict[str, Any], user_prompt: str) -> Dict[str, Any]:
+    def _fallback_basic_search(self, processed_catalog: Dict[str, Any], user_prompt: str) -> Dict[str, Any]:
         """
         Fallback search when Groq analysis fails or returns no results.
         
         Args:
-            catalog_cache: Full catalog cache (can be dict or list)
+            processed_catalog: Full catalog cache (can be dict or list)
             user_prompt: The user's original prompt
             
         Returns:
@@ -613,87 +537,63 @@ class DSLGeneratorService:
         }
         
         # Handle both dict and list catalog structures
-        if isinstance(catalog_cache, dict):
-            # Take first 10 providers for basic fallback
-            provider_count = 0
-            for app_slug, app_data in list(catalog_cache.items())[:10]:
-                if provider_count >= 10:
-                    break
+        if isinstance(processed_catalog, dict):
+            # Handle new format with providers, triggers, actions at top level
+            if 'providers' in processed_catalog:
+                # New format: take first 10 providers
+                providers = processed_catalog.get('providers', {})
+                provider_count = 0
+                for app_slug, app_data in list(providers.items())[:10]:
+                    if provider_count >= 10:
+                        break
+                        
+                    # Add provider info
+                    pruned_context['providers'][app_slug] = {
+                        'name': app_data.get('name', app_slug),
+                        'description': app_data.get('description', ''),
+                        'category': app_data.get('category', '')
+                    }
                     
-                # Add provider info
-                pruned_context['providers'][app_slug] = {
-                    'name': app_data.get('name', app_slug),
-                    'description': app_data.get('description', ''),
-                    'category': app_data.get('category', '')
-                }
+                    # Add triggers for this provider
+                    for trigger in processed_catalog.get('triggers', []):
+                        if trigger.get('toolkit_slug') == app_slug:
+                            pruned_context['triggers'].append(trigger)
+                    
+                    # Add actions for this provider
+                    for action in processed_catalog.get('actions', []):
+                        if action.get('toolkit_slug') == app_slug:
+                            pruned_context['actions'].append(action)
+                    
+                    provider_count += 1
+            else:
+                # Legacy format: take first 10 providers
+                provider_count = 0
+                for app_slug, app_data in list(processed_catalog.items())[:10]:
+                    if provider_count >= 10:
+                        break
+                        
+                    # Add provider info
+                    pruned_context['providers'][app_slug] = {
+                        'name': app_data.get('name', app_slug),
+                        'description': app_data.get('description', ''),
+                        'category': app_data.get('category', '')
+                    }
                 
-                # Add triggers
-                try:
-                    triggers = app_data.get('triggers', {})
-                    if isinstance(triggers, dict):
-                        # Dict structure: {trigger_slug: trigger_data}
-                        for trigger_slug, trigger_data in triggers.items():
-                            pruned_context['triggers'].append({
-                                'toolkit_slug': app_slug,
-                                'trigger_slug': trigger_slug,
-                                **trigger_data
-                            })
-                    elif isinstance(triggers, list):
-                        # List structure: [trigger_data, trigger_data, ...]
-                        for trigger_data in triggers:
-                            if isinstance(trigger_data, dict):
-                                # Try multiple possible slug fields
-                                trigger_slug = (
-                                    trigger_data.get('slug') or 
-                                    trigger_data.get('trigger_slug') or 
-                                    trigger_data.get('name') or 
-                                    trigger_data.get('id') or 
-                                    'unknown_trigger'
-                                )
-                                pruned_context['triggers'].append({
-                                    'toolkit_slug': app_slug,
-                                    'trigger_slug': trigger_slug,
-                                    **trigger_data
-                                })
-                except Exception as e:
-                    logger.warning(f"Error processing triggers for {app_slug}: {e}")
+                # Add triggers for this provider
+                for trigger in processed_catalog.get('triggers', []):
+                    if trigger.get('toolkit_slug') == app_slug:
+                        pruned_context['triggers'].append(trigger)
                 
-                # Add actions
-                try:
-                    actions = app_data.get('actions', {})
-                    if isinstance(actions, dict):
-                        # Dict structure: {action_slug: action_data}
-                        for action_slug, action_data in actions.items():
-                            pruned_context['actions'].append({
-                                'toolkit_slug': app_slug,
-                                'action_slug': action_slug,
-                                **action_data
-                            })
-                    elif isinstance(actions, list):
-                        # List structure: [action_data, action_data, ...]
-                        for action_data in actions:
-                            if isinstance(action_data, dict):
-                                # Try multiple possible slug fields
-                                action_slug = (
-                                    action_data.get('slug') or 
-                                    action_data.get('action_slug') or 
-                                    action_data.get('name') or 
-                                    action_data.get('id') or 
-                                    'unknown_action'
-                                )
-                                pruned_context['actions'].append({
-                                    'toolkit_slug': app_slug,
-                                    'action_slug': action_slug,
-                                    **action_data
-                                })
-                except Exception as e:
-                    logger.warning(f"Error processing actions for {app_slug}: {e}")
+                # Add actions for this provider  
+                for action in processed_catalog.get('actions', []):
+                    if action.get('toolkit_slug') == app_slug:
+                        pruned_context['actions'].append(action)
                 
                 provider_count += 1
         
-        elif isinstance(catalog_cache, list):
-            # Take first 10 providers for basic fallback
-            for app_data in catalog_cache[:10]:
+        elif isinstance(processed_catalog, list):
+            # Handle list format (legacy)
+            for app_data in processed_catalog[:10]:
                 if isinstance(app_data, dict):
                     app_slug = app_data.get('slug') or app_data.get('toolkit_slug')
                     
@@ -704,32 +604,27 @@ class DSLGeneratorService:
                         'category': app_data.get('category', '')
                     }
                     
-                    # Add triggers
-                    triggers = app_data.get('triggers', [])
-                    if isinstance(triggers, list):
-                        for trigger_data in triggers:
-                            if isinstance(trigger_data, dict):
-                                pruned_context['triggers'].append({
-                                    'toolkit_slug': app_slug,
-                                    'trigger_slug': trigger_data.get('slug', ''),
-                                    **trigger_data
-                                })
+                    # Add triggers and actions from the app_data
+                    for trigger_data in app_data.get('triggers', []):
+                        if isinstance(trigger_data, dict):
+                            pruned_context['triggers'].append({
+                                'toolkit_slug': app_slug,
+                                'trigger_slug': trigger_data.get('slug', ''),
+                                **trigger_data
+                            })
                     
-                    # Add actions
-                    actions = app_data.get('actions', [])
-                    if isinstance(actions, list):
-                        for action_data in actions:
-                            if isinstance(action_data, dict):
-                                pruned_context['actions'].append({
-                                    'toolkit_slug': app_slug,
-                                    'action_slug': action_data.get('slug', ''),
-                                    **action_data
-                                })
+                    for action_data in app_data.get('actions', []):
+                        if isinstance(action_data, dict):
+                            pruned_context['actions'].append({
+                                'toolkit_slug': app_slug,
+                                'action_slug': action_data.get('slug', ''),
+                                **action_data
+                            })
         
         logger.info(f"Fallback search found {len(pruned_context['triggers'])} triggers and {len(pruned_context['actions'])} actions")
         return pruned_context
 
-    def _build_groq_tool_selection_prompt(self, user_prompt: str, available_toolkits: list[dict]) -> str:
+    async def _build_groq_tool_selection_prompt(self, user_prompt: str, available_toolkits: list[dict]) -> str:
         """
         Builds a sophisticated prompt for Groq to pre-plan the workflow by selecting
         the exact trigger and action slugs.
@@ -738,14 +633,22 @@ class DSLGeneratorService:
         # --- IMPROVEMENT: Format the full tool list for the LLM ---
         # This gives the LLM the necessary context to choose specific, valid tools.
         tool_context_str = ""
+        
+        # Get the full catalog data
+        catalog_data = await self.catalog_manager.get_catalog_data()
+        
         for toolkit in available_toolkits:
             tool_context_str += f"\n- Toolkit: {toolkit['slug']}\n"
             tool_context_str += f"  Description: {toolkit['description']}\n"
             
-            # Get triggers from the full catalog cache, not just the summary
-            full_toolkit_data = self._catalog_cache.get("toolkits", {}).get(toolkit['slug'], {})
+            # Get triggers and actions for this toolkit from the catalog data
+            toolkit_slug = toolkit['slug']
+            toolkit_data = catalog_data.get(toolkit_slug, {})
             
-            triggers = full_toolkit_data.get("triggers", [])
+            # Get triggers and actions directly from the toolkit data
+            triggers = toolkit_data.get('triggers', [])
+            actions = toolkit_data.get('actions', [])
+            
             if triggers:
                 tool_context_str += "  Triggers:\n"
                 for t in triggers:
@@ -753,7 +656,6 @@ class DSLGeneratorService:
                     desc = t.get('description', 'No description.')
                     tool_context_str += f"    - slug: \"{slug}\", description: \"{desc}\"\n"
             
-            actions = full_toolkit_data.get("actions", [])
             if actions:
                 tool_context_str += "  Actions:\n"
                 for a in actions:
@@ -795,6 +697,8 @@ When I get a new lead in Salesforce, add them to a Google Sheet and send a celeb
 ```
 
 Now, analyze the user request provided at the top and generate the JSON response."""
+        
+        return prompt
 
     def _validate_generated_workflow(self, workflow_data: Dict[str, Any], catalog_context: Dict[str, Any]) -> List[str]:
         """Validate the generated workflow against the available tools and schema requirements."""
@@ -862,33 +766,84 @@ Now, analyze the user request provided at the top and generate the JSON response
         """Create a comprehensive mapping of available toolkits, triggers, and actions."""
         toolkit_mapping = {}
         
-        for slug, data in catalog_context.get("toolkits", {}).items():
-            toolkit_mapping[slug] = {
-                "name": data.get("name", slug),
-                "description": data.get("description", ""),
-                "triggers": {},
-                "actions": {}
-            }
+        # Handle the new structure with triggers, actions, and providers at top level
+        if "triggers" in catalog_context or "actions" in catalog_context:
+            # New structure: triggers, actions, providers at top level
+            providers = catalog_context.get("providers", {})
+            triggers = catalog_context.get("triggers", [])
+            actions = catalog_context.get("actions", [])
             
-            # Map triggers
-            for trigger in data.get("triggers", []):
-                trigger_slug = trigger.get('slug') or trigger.get('name')
-                if trigger_slug:
-                    toolkit_mapping[slug]["triggers"][trigger_slug] = {
-                        "name": trigger.get('name', trigger_slug),
-                        "description": trigger.get('description', ''),
-                        "parameters": trigger.get('parameters', [])
-                    }
+            # Group triggers by toolkit
+            for trigger in triggers:
+                toolkit_slug = trigger.get('toolkit_slug')
+                if toolkit_slug:
+                    if toolkit_slug not in toolkit_mapping:
+                        provider_data = providers.get(toolkit_slug, {})
+                        toolkit_mapping[toolkit_slug] = {
+                            "name": provider_data.get("name", toolkit_slug),
+                            "description": provider_data.get("description", ""),
+                            "triggers": {},
+                            "actions": {}
+                        }
+                    
+                    trigger_slug = trigger.get('slug') or trigger.get('name')
+                    if trigger_slug:
+                        toolkit_mapping[toolkit_slug]["triggers"][trigger_slug] = {
+                            "name": trigger.get('name', trigger_slug),
+                            "description": trigger.get('description', ''),
+                            "parameters": trigger.get('parameters', [])
+                        }
             
-            # Map actions
-            for action in data.get("actions", []):
-                action_name = action.get('slug') or action.get('name')
-                if action_name:
-                    toolkit_mapping[slug]["actions"][action_name] = {
-                        "name": action.get('name', action_name),
-                        "description": action.get('description', ''),
-                        "parameters": action.get('parameters', [])
-                    }
+            # Group actions by toolkit
+            for action in actions:
+                toolkit_slug = action.get('toolkit_slug')
+                if toolkit_slug:
+                    if toolkit_slug not in toolkit_mapping:
+                        provider_data = providers.get(toolkit_slug, {})
+                        toolkit_mapping[toolkit_slug] = {
+                            "name": provider_data.get("name", toolkit_slug),
+                            "description": provider_data.get("description", ""),
+                            "triggers": {},
+                            "actions": {}
+                        }
+                    
+                    action_slug = action.get('slug') or action.get('name')
+                    if action_slug:
+                        toolkit_mapping[toolkit_slug]["actions"][action_slug] = {
+                            "name": action.get('name', action_slug),
+                            "description": action.get('description', ''),
+                            "parameters": action.get('parameters', [])
+                        }
+        
+        else:
+            # Legacy structure: toolkits at top level
+            for slug, data in catalog_context.get("toolkits", {}).items():
+                toolkit_mapping[slug] = {
+                    "name": data.get("name", slug),
+                    "description": data.get("description", ""),
+                    "triggers": {},
+                    "actions": {}
+                }
+                
+                # Map triggers
+                for trigger in data.get("triggers", []):
+                    trigger_slug = trigger.get('slug') or trigger.get('name')
+                    if trigger_slug:
+                        toolkit_mapping[slug]["triggers"][trigger_slug] = {
+                            "name": trigger.get('name', trigger_slug),
+                            "description": trigger.get('description', ''),
+                            "parameters": trigger.get('parameters', [])
+                        }
+                
+                # Map actions
+                for action in data.get("actions", []):
+                    action_name = action.get('slug') or action.get('name')
+                    if action_name:
+                        toolkit_mapping[slug]["actions"][action_name] = {
+                            "name": action.get('name', action_name),
+                            "description": action.get('description', ''),
+                            "parameters": action.get('parameters', [])
+                        }
         
         return toolkit_mapping
 
@@ -984,27 +939,27 @@ Now, analyze the user request provided at the top and generate the JSON response
         Returns a list of error strings for feedback.
         """
         errors = []
+        
+        # Build sets of available tools from catalog context
+        # The catalog context has triggers and actions as separate lists
         available_triggers = set()
         available_actions = set()
 
-        # Build sets of available tools from catalog context
-        for toolkit_slug, data in catalog_context.get("toolkits", {}).items():
-            for t in data.get("triggers", []):
-                available_triggers.add(f"{toolkit_slug}.{t.get('slug') or t.get('name')}")
-            for a in data.get("actions", []):
-                available_actions.add(f"{toolkit_slug}.{a.get('slug') or a.get('name')}")
-
-        # Also check the triggers and actions lists directly (for the new format)
+        # Check the triggers and actions lists directly (for the new format)
         for trigger in catalog_context.get("triggers", []):
             toolkit_slug = trigger.get("toolkit_slug", "")
             trigger_slug = trigger.get("trigger_slug", "") or trigger.get("slug", "")
             if toolkit_slug and trigger_slug:
+                # Store both the individual trigger slug and the toolkit.trigger combination
+                available_triggers.add(trigger_slug)
                 available_triggers.add(f"{toolkit_slug}.{trigger_slug}")
 
         for action in catalog_context.get("actions", []):
             toolkit_slug = action.get("toolkit_slug", "")
-            action_slug = action.get("action_slug", "") or action.get("slug", "")
+            action_slug = action.get("action_slug", "") or action.get("slug", "") or action.get("action_name", "")
             if toolkit_slug and action_slug:
+                # Store both the individual action slug and the toolkit.action combination
+                available_actions.add(action_slug)
                 available_actions.add(f"{toolkit_slug}.{action_slug}")
 
         workflow = dsl.get("workflow", {})
@@ -1014,18 +969,40 @@ Now, analyze the user request provided at the top and generate the JSON response
             toolkit_slug = trigger.get("toolkit_slug", "")
             trigger_slug = trigger.get("composio_trigger_slug", "")
             if toolkit_slug and trigger_slug:
-                slug = f"{toolkit_slug}.{trigger_slug}"
-                if slug not in available_triggers:
-                    errors.append(f"Invalid trigger: '{slug}'. It is not in the <available_tools> list.")
+                # Check if the trigger exists in the available triggers
+                # We check both the individual trigger slug and the toolkit.trigger combination
+                trigger_exists = (
+                    trigger_slug in available_triggers or 
+                    f"{toolkit_slug}.{trigger_slug}" in available_triggers or
+                    # Also check if the individual components exist in the catalog
+                    any(
+                        t.get("toolkit_slug") == toolkit_slug and 
+                        (t.get("slug") == trigger_slug or t.get("name") == trigger_slug or t.get("trigger_slug") == trigger_slug)
+                        for t in catalog_context.get("triggers", [])
+                    )
+                )
+                if not trigger_exists:
+                    errors.append(f"Invalid trigger: '{toolkit_slug}.{trigger_slug}'. It is not in the <available_tools> list.")
             
         # Check actions
         for action in workflow.get("actions", []):
             toolkit_slug = action.get("toolkit_slug", "")
             action_name = action.get("action_name", "")
             if toolkit_slug and action_name:
-                slug = f"{toolkit_slug}.{action_name}"
-                if slug not in available_actions:
-                    errors.append(f"Invalid action: '{slug}'. It is not in the <available_tools> list.")
+                # Check if the action exists in the available actions
+                # We check both the individual action name and the toolkit.action combination
+                action_exists = (
+                    action_name in available_actions or 
+                    f"{toolkit_slug}.{action_name}" in available_actions or
+                    # Also check if the individual components exist in the catalog
+                    any(
+                        a.get("toolkit_slug") == toolkit_slug and 
+                        (a.get("slug") == action_name or a.get("name") == action_name or a.get("action_name") == action_name)
+                        for a in catalog_context.get("actions", [])
+                    )
+                )
+                if not action_exists:
+                    errors.append(f"Invalid action: '{toolkit_slug}.{action_name}'. It is not in the <available_tools> list.")
             
         return errors
 
@@ -1037,9 +1014,11 @@ Now, analyze the user request provided at the top and generate the JSON response
         
         # --- IMPROVEMENT 1: Simplify the tool context ---
         tool_list_str = ""
+        has_triggers = False
         for slug, data in toolkit_mapping.items():
             tool_list_str += f"\n--- Toolkit: {slug} ---\n"
             if data.get("triggers"):
+                has_triggers = True
                 tool_list_str += "Triggers:\n"
                 for trigger_slug, trigger_data in data["triggers"].items():
                     tool_list_str += f"  - composio_trigger_slug: {trigger_slug}\n"
@@ -1051,6 +1030,10 @@ Now, analyze the user request provided at the top and generate the JSON response
                     tool_list_str += f"  - action_name: {action_name}\n"
                     if action_data.get("description"):
                         tool_list_str += f"    Description: {action_data['description']}\n"
+        
+        # Add explicit warning if no triggers are available
+        if not has_triggers:
+            tool_list_str += "\n⚠️  WARNING: NO TRIGGERS AVAILABLE - Use manual trigger format: {\"triggers\": [{{\"id\": \"manual_trigger\", \"type\": \"manual\"}}]}"
 
         # Generate a dynamic example based on available tools
         dynamic_example = self._generate_dynamic_example(catalog_context)
@@ -1076,6 +1059,8 @@ Now, analyze the user request provided at the top and generate the JSON response
 10. Use "string", "number", "boolean", or "array" as type values.
 11. COPY AND PASTE the exact slug/name values - do not modify them.
 12. Your JSON MUST be parseable by Python's json.loads().
+13. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
+14. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
 </instructions>
 
 <dynamic_example>
@@ -1088,6 +1073,8 @@ CRITICAL: Your JSON MUST pass these validation rules:
 - All toolkit_slug values MUST exist in the available_tools
 - All composio_trigger_slug values MUST exist in the available_tools  
 - All action_name values MUST exist in the available_tools
+- ⚠️  If no triggers are available, use: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
+- ⚠️  NEVER use "trigger_type" - always use "triggers" array format
 - No markdown formatting or code blocks
 - Pure JSON only
 - Every field must be properly quoted
@@ -1225,12 +1212,16 @@ Now, generate the complete JSON for the user's request."""
                 
                 # Perform comprehensive validation using WorkflowValidator
                 try:
-                    # Create GenerationContext for the validator
+                    # Create GenerationContext for the validator with FULL catalog data
                     schema_definition = self.context_builder._load_schema_definition()
+                    
+                    # Get the full catalog data from the catalog manager
+                    full_catalog_data = await self.catalog_manager.get_catalog_data()
+                    
                     catalog_context_obj = CatalogContext(
-                        available_providers=list(catalog_context.get('providers', {}).values()),
-                        available_triggers=catalog_context.get('triggers', []),
-                        available_actions=catalog_context.get('actions', []),
+                        available_providers=list(full_catalog_data.values()),
+                        available_triggers=self.catalog_manager.extract_triggers(full_catalog_data),
+                        available_actions=self.catalog_manager.extract_actions(full_catalog_data),
                         provider_categories=[]
                     )
                     
@@ -1399,17 +1390,17 @@ Now, generate the complete JSON for the user's request."""
     
     def validate_workflow_components(self, workflow_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate specific workflow components against the catalog"""
-        return self.response_parser.validate_workflow_components(workflow_data, self.catalog_manager._catalog_cache)
+        return self.response_parser.validate_workflow_components(workflow_data, self.catalog_manager._processed_catalog)
     
-    def clear_catalog_cache(self):
+    def clear_processed_catalog(self):
         """Clear the in-memory catalog cache"""
         self.catalog_manager.clear_catalog_cache()
     
-    async def preload_catalog_cache(self):
+    async def preload_processed_catalog(self):
         """Preload catalog cache during initialization for immediate use"""
         await self.catalog_manager.preload_catalog_cache()
     
-    async def refresh_catalog_cache(self, force: bool = False):
+    async def refresh_processed_catalog(self, force: bool = False):
         """Refresh the catalog cache data"""
         await self.catalog_manager.refresh_catalog_cache(force)
     

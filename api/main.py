@@ -5,7 +5,6 @@ Refactored main FastAPI application with separated route modules.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
-import logging
 
 # Import route modules
 from api.routes import (
@@ -19,7 +18,11 @@ from api.routes import (
 # Import cache service
 from api.cache_service import global_cache_service
 
-logger = logging.getLogger(__name__)
+# Import enhanced logging
+from core.logging_config import get_logger
+from api.middleware import add_logging_middleware
+
+logger = get_logger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -89,6 +92,9 @@ async def shutdown_event():
     logger.info("🗑️  Cache cleared")
     
     logger.info("👋 Weave API server shutdown complete!")
+
+# Add logging middleware first (for request tracking)
+add_logging_middleware(app)
 
 # Add CORS middleware
 app.add_middleware(

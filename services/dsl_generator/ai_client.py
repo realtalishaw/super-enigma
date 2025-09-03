@@ -5,10 +5,11 @@ Handles Claude API calls and manages the AI interaction layer
 for workflow generation.
 """
 
-import logging
 import asyncio
 import random
 import time
+import uuid
+import logging
 from typing import Optional, Dict, Any
 from tenacity import (
     retry, 
@@ -20,9 +21,11 @@ from tenacity import (
 import httpx
 from httpx import HTTPStatusError
 from core.config import settings
+from core.logging_config import get_logger, get_llm_logger
 from .rate_limiter import wait_for_claude_token, record_claude_rate_limit, record_claude_success
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+llm_logger = get_llm_logger(__name__)
 
 
 class RateLimitExceededError(Exception):
@@ -99,6 +102,16 @@ class AIClient:
         if not self.anthropic_api_key:
             raise ValueError("Anthropic API key is required for Claude access")
         
+        # Generate request ID for tracking
+        request_id = str(uuid.uuid4())[:8]
+        
+        # Log LLM request
+        llm_logger.log_llm_request(
+            model=self.claude_model,
+            prompt=prompt,
+            request_id=request_id
+        )
+        
         # Wait for rate limiter token before making request
         await wait_for_claude_token()
         
@@ -131,6 +144,9 @@ class AIClient:
             self.last_request_time = time.time()
             self.request_count += 1
             
+            # Record start time for response timing
+            start_time = time.time()
+            
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     self.base_url,
@@ -162,8 +178,21 @@ class AIClient:
                 # Record successful request for adaptive learning
                 record_claude_success()
                 
+                # Calculate response time
+                response_time_ms = (time.time() - start_time) * 1000
+                
                 result = response.json()
-                return result["content"][0]["text"]
+                response_text = result["content"][0]["text"]
+                
+                # Log LLM response
+                llm_logger.log_llm_response(
+                    model=self.claude_model,
+                    response=response_text,
+                    request_id=request_id,
+                    duration_ms=response_time_ms
+                )
+                
+                return response_text
                 
         except HTTPStatusError as e:
             if e.response.status_code == 429:
@@ -179,6 +208,12 @@ class AIClient:
             logger.error(f"Timeout error to Claude API: {e}")
             raise RuntimeError(f"Timeout error to Claude API: {e}")
         except Exception as e:
+            # Log LLM error
+            llm_logger.log_llm_error(
+                model=self.claude_model,
+                error=str(e),
+                request_id=request_id
+            )
             logger.error(f"Unexpected error calling Claude API: {e}")
             raise RuntimeError(f"Failed to call Claude API: {e}")
     

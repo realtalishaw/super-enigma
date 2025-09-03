@@ -255,31 +255,32 @@ class PromptBuilder:
                 logger.debug(f"Trigger {i}: keys={list(trigger.keys())}, id={trigger.get('id')}, name={trigger.get('name')}, slug={trigger.get('slug')}")
         
         formatted = []
-        meaningful_ids = 0
+        meaningful_slugs = 0
         total_triggers = len(triggers[:15])  # Limit to first 15
         
         for trigger in triggers[:15]:  # Limit to first 15
-            trigger_id = trigger.get('id', 'unknown_id')
+            # Use slug as the primary identifier (matches database structure)
+            trigger_slug = trigger.get('slug', 'unknown_trigger')
             toolkit_slug = trigger.get('toolkit_slug', 'unknown_toolkit')
             name = trigger.get('name', 'Unknown')
             
-            # Only include triggers that have a valid identifier
-            if trigger_id and trigger_id != 'unknown_id':
-                meaningful_ids += 1
-                formatted.append(f"- trigger_id: {trigger_id} (toolkit_slug: {toolkit_slug}) — {name}")
+            # Only include triggers that have a valid slug
+            if trigger_slug and trigger_slug != 'unknown_trigger':
+                meaningful_slugs += 1
+                formatted.append(f"- trigger_slug: {trigger_slug} (toolkit_slug: {toolkit_slug}) — {name}")
                 if trigger.get('description'):
                     formatted.append(f"  Description: {trigger['description']}")
         
-        logger.info(f"Triggers with meaningful IDs: {meaningful_ids}/{total_triggers}")
+        logger.info(f"Triggers with meaningful slugs: {meaningful_slugs}/{total_triggers}")
         
         if not formatted:
             # Fallback: show some basic trigger examples from popular toolkits
             fallback_triggers = [
-                "- trigger_id: NEW_EMAIL (toolkit_slug: gmail) — New Email Received",
-                "- trigger_id: NEW_MESSAGE (toolkit_slug: slack) — New Message",
-                "- trigger_id: NEW_ISSUE (toolkit_slug: github) — New Issue Created",
-                "- trigger_id: NEW_TASK (toolkit_slug: linear) — New Task Created",
-                "- trigger_id: NEW_PAGE (toolkit_slug: notion) — New Page Created"
+                "- trigger_slug: NEW_EMAIL (toolkit_slug: gmail) — New Email Received",
+                "- trigger_slug: NEW_MESSAGE (toolkit_slug: slack) — New Message",
+                "- trigger_slug: NEW_ISSUE (toolkit_slug: github) — New Issue Created",
+                "- trigger_slug: NEW_TASK (toolkit_slug: linear) — New Task Created",
+                "- trigger_slug: NEW_PAGE (toolkit_slug: notion) — New Page Created"
             ]
             logger.warning(f"No valid triggers found in catalog, using fallback examples")
             return "\n".join(fallback_triggers)
@@ -304,24 +305,18 @@ class PromptBuilder:
         
         formatted = []
         meaningful_slugs = 0
-        total_actions = len(actions[:20])  # Limit to first 20
+        total_actions = len(actions[:100])  # Limit to first 100
         
-        for action in actions[:20]:  # Limit to first 20
-            # Try different possible field names for action identifier
-            action_slug = (
-                action.get('action_name') or 
-                action.get('name') or 
-                action.get('id') or 
-                action.get('slug') or 
-                'unknown_action'
-            )
+        for action in actions[:100]:  # Limit to first 100
+            # Use slug as the primary identifier (matches database structure)
+            action_slug = action.get('slug', 'unknown_action')
             toolkit_slug = action.get('toolkit_slug', 'unknown_toolkit')
             name = action.get('name', 'Unknown')
             
-            # Only include actions that have a valid identifier
+            # Only include actions that have a valid slug
             if action_slug and action_slug != 'unknown_action':
                 meaningful_slugs += 1
-                formatted.append(f"- action_name: {action_slug} (toolkit_slug: {toolkit_slug}) — {name}")
+                formatted.append(f"- action_slug: {action_slug} (toolkit_slug: {toolkit_slug}) — {name}")
                 if action.get('description'):
                     formatted.append(f"  Description: {action['description']}")
                 if action.get('parameters'):
@@ -335,11 +330,11 @@ class PromptBuilder:
         if not formatted:
             # Fallback: show some basic action examples from popular toolkits
             fallback_actions = [
-                "- action_name: GMAIL_SEND_EMAIL (toolkit_slug: gmail) — Send Email",
-                "- action_name: SLACK_SEND_MESSAGE (toolkit_slug: slack) — Send Message",
-                "- action_name: GITHUB_CREATE_ISSUE (toolkit_slug: github) — Create Issue",
-                "- action_name: LINEAR_CREATE_ISSUE (toolkit_slug: linear) — Create Issue",
-                "- action_name: NOTION_CREATE_PAGE (toolkit_slug: notion) — Create Page"
+                "- action_slug: GMAIL_SEND_EMAIL (toolkit_slug: gmail) — Send Email",
+                "- action_slug: SLACK_SEND_MESSAGE (toolkit_slug: slack) — Send Message",
+                "- action_slug: GITHUB_CREATE_ISSUE (toolkit_slug: github) — Create Issue",
+                "- action_slug: LINEAR_CREATE_ISSUE (toolkit_slug: linear) — Create Issue",
+                "- action_slug: NOTION_CREATE_PAGE (toolkit_slug: notion) — Create Page"
             ]
             logger.warning(f"No valid actions found in catalog, using fallback examples")
             return "\n".join(fallback_actions)

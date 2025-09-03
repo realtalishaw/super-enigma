@@ -6,15 +6,15 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-import logging
 
 from registrar import SchedulerRegistrar
 from worker import SchedulerWorker
 from database import SchedulerDatabase
 from run_launcher import RunLauncher, WorkflowStore, ExecutorClient
 from models import ScheduleInput, SchedulePreview
+from core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Create FastAPI app
 app = FastAPI(

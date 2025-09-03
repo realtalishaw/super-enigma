@@ -25,9 +25,9 @@ from enum import Enum
 import httpx
 from jinja2 import Template, Environment, BaseLoader
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 class NodeType(str, Enum):
     """Supported node types in the DAG"""

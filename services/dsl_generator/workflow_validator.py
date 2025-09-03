@@ -69,7 +69,7 @@ class WorkflowValidator:
             if isinstance(providers, list):
                 logger.info(f"[LINE 52] Providers is a list, converting to catalog object...")
                 # Convert list of providers to a simple catalog object with lookup helpers
-                provider_index = {p.get('slug') or p.get('toolkit_slug'): p for p in providers if p}
+                provider_index = {p.get('slug'): p for p in providers if p and p.get('slug')}
                 logger.info(f"[LINE 54] Created provider index with {len(provider_index)} providers")
                 logger.info(f"[LINE 55] Provider index keys: {list(provider_index.keys())}")
                 

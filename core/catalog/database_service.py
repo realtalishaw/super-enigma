@@ -340,7 +340,7 @@ class DatabaseCatalogService:
             async with self.session_factory() as session:
                 tools_query = text("""
                     SELECT 
-                        tool_id, name, display_name, description, tool_type, version,
+                        tool_id, slug, name, display_name, description, tool_type, version,
                         input_schema, output_schema, tags
                     FROM tools 
                     WHERE toolkit_id = :toolkit_id AND is_deprecated = FALSE
@@ -353,6 +353,7 @@ class DatabaseCatalogService:
                 for row in result.fetchall():
                     tool = {
                         "id": row.tool_id,
+                        "slug": row.slug,
                         "name": row.name,
                         "display_name": row.display_name,
                         "description": row.description,
@@ -394,7 +395,7 @@ class DatabaseCatalogService:
                 # Get tools for this toolkit
                 tools_query = text("""
                     SELECT 
-                        t.name, t.display_name, t.description, t.tool_type, t.version,
+                        t.slug, t.name, t.display_name, t.description, t.tool_type, t.version,
                         p.name as param_name, p.name as param_display, p.description as param_description,
                         p.param_type, p.is_required, p.default_value, p.validation_rules
                     FROM tools t
@@ -410,6 +411,7 @@ class DatabaseCatalogService:
                     tool_name = row.name
                     if tool_name not in tools_data:
                         tools_data[tool_name] = {
+                            "slug": row.slug,
                             "name": tool_name,
                             "display_name": row.display_name,
                             "description": row.description,

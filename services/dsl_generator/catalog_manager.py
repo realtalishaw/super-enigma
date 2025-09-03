@@ -319,19 +319,14 @@ class CatalogManager:
                 logger.debug(f"  Found {triggers_count} triggers in provider {provider_key}")
                 
                 for trigger in provider['triggers']:
-                    # Try to find the best identifier for the trigger
-                    trigger_identifier = (
-                        trigger.get('id') or 
-                        trigger.get('name') or 
-                        trigger.get('slug') or
-                        f"trigger_{len(triggers)}"  # Fallback identifier
-                    )
+                    # Use slug as the primary identifier (matches database structure)
+                    trigger_slug = trigger.get('slug') or f"trigger_{len(triggers)}"
                     
                     trigger_info = {
-                        'id': trigger_identifier,  # Use the best identifier found
+                        'id': trigger.get('id'),  # Keep original id if it exists
                         'name': trigger.get('name'),
                         'type': trigger.get('type'),
-                        'slug': trigger.get('slug'),  # Keep original slug if it exists
+                        'slug': trigger_slug,  # Use slug as primary identifier
                         'toolkit_slug': provider.get('slug'),
                         'toolkit_name': provider.get('name'),
                         'description': trigger.get('description', ''),
@@ -366,20 +361,14 @@ class CatalogManager:
                 logger.debug(f"  Found {actions_count} actions in provider {provider_key}")
                 
                 for action in provider['actions']:
-                    # Try to find the best identifier for the action
-                    action_identifier = (
-                        action.get('action_name') or 
-                        action.get('name') or 
-                        action.get('id') or 
-                        action.get('slug') or
-                        f"action_{len(actions)}"  # Fallback identifier
-                    )
+                    # Use slug as the primary identifier (matches database structure)
+                    action_slug = action.get('slug') or f"action_{len(actions)}"
                     
                     action_info = {
                         'id': action.get('id'),
                         'name': action.get('name'),
-                        'action_name': action_identifier,  # Use the best identifier found
-                        'slug': action.get('slug'),  # Keep original slug if it exists
+                        'action_name': action.get('action_name'),  # Keep original action_name if it exists
+                        'slug': action_slug,  # Use slug as primary identifier
                         'toolkit_slug': provider.get('slug'),
                         'toolkit_name': provider.get('name'),
                         'description': action.get('description', ''),

@@ -5,15 +5,15 @@ This service preloads catalog data when the server starts and provides
 access to cached data for all requests.
 """
 
-import logging
 import time
 from typing import Dict, Any, Optional
 from core.catalog import DatabaseCatalogService
 from core.catalog.redis_client import RedisClientFactory
 from core.catalog.cache import RedisCacheStore
 from core.config import settings
+from core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class GlobalCacheService:
     """Global cache service that preloads catalog data on server startup"""
