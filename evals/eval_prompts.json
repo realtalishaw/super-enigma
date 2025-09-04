@@ -160,7 +160,7 @@
       "expected": {
         "apps": ["stripe", "slack"],
         "trigger_slug": "SCHEDULE_BASED",
-        "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_POST_MESSAGE"],
+        "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_SEND_MESSAGE"],
         "min_steps": 2
       }
     }

@@ -24,6 +24,39 @@ from .templates.base_templates import (
 
 logger = logging.getLogger(__name__)
 
+def log_json_pretty(data: Any, prefix: str = "", max_length: int = 2000):
+    """Helper function to log JSON data in a pretty format with length limits"""
+    try:
+        if isinstance(data, (dict, list)):
+            json_str = json.dumps(data, indent=2, default=str)
+            if len(json_str) > max_length:
+                json_str = json_str[:max_length] + "... [TRUNCATED]"
+            logger.info(f"{prefix}\n{json_str}")
+        else:
+            logger.info(f"{prefix}: {data}")
+    except Exception as e:
+        logger.error(f"Failed to log JSON data: {e}")
+        logger.info(f"{prefix}: {str(data)[:500]}")
+
+def log_function_entry(func_name: str, **kwargs):
+    """Log function entry with parameters"""
+    logger.info(f"🔵 ENTERING {func_name}")
+    for key, value in kwargs.items():
+        if isinstance(value, (dict, list)):
+            log_json_pretty(value, f"  📥 {key}:")
+        else:
+            logger.info(f"  📥 {key}: {value}")
+
+def log_function_exit(func_name: str, result: Any = None, success: bool = True):
+    """Log function exit with result"""
+    status = "✅" if success else "❌"
+    logger.info(f"{status} EXITING {func_name}")
+    if result is not None:
+        if isinstance(result, (dict, list)):
+            log_json_pretty(result, f"  📤 Result:")
+        else:
+            logger.info(f"  📤 Result: {result}")
+
 
 class PromptBuilder:
     """
@@ -47,7 +80,7 @@ class PromptBuilder:
     
     def build_prompt(self, context: GenerationContext, attempt: int = 1, previous_errors: List[str] = None, selected_plan: str = "{}") -> str:
         """Build the Claude prompt for workflow generation"""
-        logger.info(f"[LINE 45] build_prompt called with attempt: {attempt}, previous_errors count: {len(previous_errors) if previous_errors else 0}")
+        log_function_entry("build_prompt", context=context, attempt=attempt, previous_errors=previous_errors, selected_plan=selected_plan)
         logger.info(f"[LINE 46] Context request workflow_type: {context.request.workflow_type}")
         logger.info(f"[LINE 47] Context request complexity: {context.request.complexity}")
         logger.info(f"[LINE 48] Selected plan: {selected_plan}")
@@ -97,9 +130,17 @@ class PromptBuilder:
             logger.info(f"[LINE 81] No feedback section needed (attempt: {attempt}, previous_errors: {len(previous_errors) if previous_errors else 0})")
         
         final_prompt_length = len(base_prompt)
-        logger.info(f"[LINE 83] Final prompt length: {final_prompt_length} chars")
-        logger.debug(f"[LINE 84] Final prompt preview: {base_prompt[:1000]}...")
+        logger.info(f"✅ Final prompt length: {final_prompt_length} chars")
+        logger.info(f"📝 Final prompt preview: {base_prompt[:1000]}...")
         
+        # Log the available tools section for debugging
+        if "<available_tools>" in base_prompt:
+            tools_start = base_prompt.find("<available_tools>")
+            tools_end = base_prompt.find("</available_tools>") + len("</available_tools>")
+            tools_section = base_prompt[tools_start:tools_end]
+            logger.info(f"🔧 Available tools section:\n{tools_section}")
+        
+        log_function_exit("build_prompt", base_prompt, success=True)
         return base_prompt
 
     def build_planning_prompt(self, context: GenerationContext) -> str:

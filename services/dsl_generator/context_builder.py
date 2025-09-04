@@ -6,11 +6,45 @@ including filtering and data extraction.
 """
 
 import logging
+import json
 from typing import Dict, Any, List
 from .models import GenerationRequest, GenerationContext, CatalogContext
 from .catalog_manager import CatalogManager
 
 logger = logging.getLogger(__name__)
+
+def log_json_pretty(data: Any, prefix: str = "", max_length: int = 2000):
+    """Helper function to log JSON data in a pretty format with length limits"""
+    try:
+        if isinstance(data, (dict, list)):
+            json_str = json.dumps(data, indent=2, default=str)
+            if len(json_str) > max_length:
+                json_str = json_str[:max_length] + "... [TRUNCATED]"
+            logger.info(f"{prefix}\n{json_str}")
+        else:
+            logger.info(f"{prefix}: {data}")
+    except Exception as e:
+        logger.error(f"Failed to log JSON data: {e}")
+        logger.info(f"{prefix}: {str(data)[:500]}")
+
+def log_function_entry(func_name: str, **kwargs):
+    """Log function entry with parameters"""
+    logger.info(f"🔵 ENTERING {func_name}")
+    for key, value in kwargs.items():
+        if isinstance(value, (dict, list)):
+            log_json_pretty(value, f"  📥 {key}:")
+        else:
+            logger.info(f"  📥 {key}: {value}")
+
+def log_function_exit(func_name: str, result: Any = None, success: bool = True):
+    """Log function exit with result"""
+    status = "✅" if success else "❌"
+    logger.info(f"{status} EXITING {func_name}")
+    if result is not None:
+        if isinstance(result, (dict, list)):
+            log_json_pretty(result, f"  📤 Result:")
+        else:
+            logger.info(f"  📤 Result: {result}")
 
 
 class ContextBuilder:
@@ -30,11 +64,16 @@ class ContextBuilder:
     
     async def build_generation_context(self, request: GenerationRequest) -> GenerationContext:
         """Build the full context for generation"""
+        log_function_entry("build_generation_context", request=request)
+        
         try:
             # Get catalog data from cache or service
+            logger.info("🔍 Getting catalog data from cache or service...")
             providers = await self.catalog_manager.get_catalog_data()
+            log_json_pretty(list(providers.keys())[:10], "📋 Available providers (first 10):")
             
             # Build catalog context
+            logger.info("🔧 Building catalog context...")
             catalog_context = CatalogContext(
                 available_providers=list(providers.values()) if providers else [],
                 available_triggers=self.catalog_manager.extract_triggers(providers),
@@ -43,11 +82,17 @@ class ContextBuilder:
             )
             
             # Log catalog context for debugging
-            logger.info(f"Built catalog context with:")
+            logger.info(f"✅ Built catalog context with:")
             logger.info(f"  - {len(catalog_context.available_providers)} providers")
             logger.info(f"  - {len(catalog_context.available_triggers)} triggers")
             logger.info(f"  - {len(catalog_context.available_actions)} actions")
             logger.info(f"  - {len(catalog_context.provider_categories)} categories")
+            
+            # Log sample triggers and actions
+            if catalog_context.available_triggers:
+                log_json_pretty(catalog_context.available_triggers[:3], "📋 Sample triggers (first 3):")
+            if catalog_context.available_actions:
+                log_json_pretty(catalog_context.available_actions[:3], "📋 Sample actions (first 3):")
             
             # Debug: log sample data
             if catalog_context.available_actions:
@@ -59,28 +104,38 @@ class ContextBuilder:
             
             # Filter by selected apps if specified
             if request.selected_apps:
+                logger.info(f"🎯 Filtering catalog by selected apps: {request.selected_apps}")
                 catalog_context = self._filter_catalog_by_apps(
                     catalog_context, request.selected_apps
                 )
+                logger.info(f"✅ After filtering: {len(catalog_context.available_providers)} providers, {len(catalog_context.available_triggers)} triggers, {len(catalog_context.available_actions)} actions")
+            else:
+                logger.info("🎯 No selected apps filter - using full catalog")
             
             # Load schema definition
+            logger.info("📋 Loading schema definition...")
             schema_definition = self._load_schema_definition()
             
-            return GenerationContext(
+            result = GenerationContext(
                 request=request,
                 catalog=catalog_context,
                 schema_definition=schema_definition
             )
             
+            log_function_exit("build_generation_context", result, success=True)
+            return result
+            
         except Exception as e:
-            logger.error(f"Failed to build generation context: {e}")
+            logger.error(f"❌ Failed to build generation context: {e}")
             # Return minimal context
             schema_definition = self._load_schema_definition()
-            return GenerationContext(
+            result = GenerationContext(
                 request=request,
                 catalog=CatalogContext(),
                 schema_definition=schema_definition
             )
+            log_function_exit("build_generation_context", result, success=False)
+            return result
     
     def _filter_catalog_by_apps(
         self, 

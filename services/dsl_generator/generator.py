@@ -25,6 +25,39 @@ from core.semantic_search.search_service import SemanticSearchService
 
 logger = logging.getLogger(__name__)
 
+def log_json_pretty(data: Any, prefix: str = "", max_length: int = 2000):
+    """Helper function to log JSON data in a pretty format with length limits"""
+    try:
+        if isinstance(data, (dict, list)):
+            json_str = json.dumps(data, indent=2, default=str)
+            if len(json_str) > max_length:
+                json_str = json_str[:max_length] + "... [TRUNCATED]"
+            logger.info(f"{prefix}\n{json_str}")
+        else:
+            logger.info(f"{prefix}: {data}")
+    except Exception as e:
+        logger.error(f"Failed to log JSON data: {e}")
+        logger.info(f"{prefix}: {str(data)[:500]}")
+
+def log_function_entry(func_name: str, **kwargs):
+    """Log function entry with parameters"""
+    logger.info(f"🔵 ENTERING {func_name}")
+    for key, value in kwargs.items():
+        if isinstance(value, (dict, list)):
+            log_json_pretty(value, f"  📥 {key}:")
+        else:
+            logger.info(f"  📥 {key}: {value}")
+
+def log_function_exit(func_name: str, result: Any = None, success: bool = True):
+    """Log function exit with result"""
+    status = "✅" if success else "❌"
+    logger.info(f"{status} EXITING {func_name}")
+    if result is not None:
+        if isinstance(result, (dict, list)):
+            log_json_pretty(result, f"  📤 Result:")
+        else:
+            logger.info(f"  📤 Result: {result}")
+
 
 class DSLGeneratorService:
     """
@@ -104,41 +137,53 @@ class DSLGeneratorService:
         Returns:
             GenerationResponse with DSL template and missing fields
         """
+        log_function_entry("generate_workflow", request=request)
+        
         try:
             # Ensure service is initialized
             if not self.catalog_manager.catalog_service:
+                logger.info("🔧 Service not initialized, initializing now...")
                 await self.initialize()
             
             # Step 1: Tool Retrieval - Get relevant tools from catalog
-            logger.info("Step 1: Performing tool retrieval...")
+            logger.info("🔍 Step 1: Performing tool retrieval...")
             pruned_catalog_context = await self._retrieve_relevant_tools(request)
             
             if not pruned_catalog_context:
-                return GenerationResponse(
+                logger.error("❌ Tool retrieval failed - no context returned")
+                result = GenerationResponse(
                     success=False,
                     error_message="Failed to retrieve relevant tools from catalog",
                     missing_fields=[],
                     confidence=0.0
                 )
+                log_function_exit("generate_workflow", result, success=False)
+                return result
             
-            logger.info(f"Tool retrieval complete. Found {len(pruned_catalog_context.get('triggers', []))} triggers and {len(pruned_catalog_context.get('actions', []))} actions")
+            logger.info(f"✅ Tool retrieval complete. Found {len(pruned_catalog_context.get('triggers', []))} triggers and {len(pruned_catalog_context.get('actions', []))} actions")
+            log_json_pretty(pruned_catalog_context, "📋 Retrieved catalog context:")
             
             # Limit tools to keep context concise and prevent Claude API size limits
-            logger.info("Limiting tools for Claude context...")
+            logger.info("🔧 Limiting tools for Claude context...")
             limited_catalog_context = self._limit_tools_for_context(pruned_catalog_context)
+            log_json_pretty(limited_catalog_context, "📋 Limited catalog context:")
             
             # Step 2: Focused Generation - Generate workflow with targeted tools
-            logger.info("Step 2: Performing focused generation...")
-            return await self._generate_with_validation_loop(request, limited_catalog_context)
+            logger.info("🤖 Step 2: Performing focused generation...")
+            result = await self._generate_with_validation_loop(request, limited_catalog_context)
+            log_function_exit("generate_workflow", result, success=result.success)
+            return result
             
         except Exception as e:
-            logger.error(f"Workflow generation failed: {e}")
-            return GenerationResponse(
+            logger.error(f"❌ Workflow generation failed: {e}")
+            result = GenerationResponse(
                 success=False,
                 error_message=str(e),
                 missing_fields=[],
                 confidence=0.0
             )
+            log_function_exit("generate_workflow", result, success=False)
+            return result
 
     async def generate_multiple_workflows(self, request: GenerationRequest, num_workflows: int = 1) -> List[GenerationResponse]:
         """
@@ -224,13 +269,18 @@ class DSLGeneratorService:
         Returns:
             Pruned catalog context with only relevant tools, or None if failed
         """
+        log_function_entry("_retrieve_relevant_tools", request=request)
+        
         try:
-            logger.info(f"Using semantic search + Groq LLM analysis for tool retrieval")
-            logger.info(f"User prompt: {request.user_prompt[:100]}...")
+            logger.info(f"🔍 Using semantic search + Groq LLM analysis for tool retrieval")
+            logger.info(f"📝 User prompt: {request.user_prompt[:100]}...")
             if request.selected_apps:
-                logger.info(f"Selected apps filter: {request.selected_apps}")
+                logger.info(f"🎯 Selected apps filter: {request.selected_apps}")
+            else:
+                logger.info("🎯 No selected apps filter - will search all providers")
             
             # Step 1: Use semantic search to find potentially relevant tools
+            logger.info("🔍 Step 1a: Running semantic search...")
             search_results = self.semantic_search.search(
                 query=request.user_prompt,
                 k=100,  # Get more results for Groq to analyze
@@ -239,39 +289,50 @@ class DSLGeneratorService:
             )
             
             if not search_results:
-                logger.warning("No semantic search results found")
+                logger.warning("⚠️ No semantic search results found")
+                log_function_exit("_retrieve_relevant_tools", None, success=False)
                 return None
             
-            logger.info(f"Semantic search found {len(search_results)} potentially relevant tools")
+            logger.info(f"✅ Semantic search found {len(search_results)} potentially relevant tools")
+            log_json_pretty(search_results[:5], "📋 Sample semantic search results (first 5):")
             
             # Convert semantic search results to the expected catalog format
+            logger.info("🔄 Converting semantic results to catalog format...")
             semantic_context = self._convert_semantic_results_to_catalog(search_results)
+            log_json_pretty(semantic_context, "📋 Converted semantic context:")
             
             # Step 2: Use Groq LLM to analyze and select the best tools for the specific task
             if self.groq_api_key and not request.selected_apps:
                 # Use semantic search results for Groq analysis when no specific apps are selected
-                logger.info("Using Groq LLM to analyze and select best tools from semantic results")
+                logger.info("🤖 Using Groq LLM to analyze and select best tools from semantic results")
                 pruned_context = await self._groq_analyze_semantic_results(request.user_prompt, semantic_context)
             elif self.groq_api_key and request.selected_apps:
                 # Use original Groq approach when specific apps are selected
-                logger.info("Using original Groq approach for selected apps")
+                logger.info("🤖 Using original Groq approach for selected apps")
                 pruned_context = await self._groq_analyze_selected_apps(request.user_prompt, request.selected_apps)
             else:
-                logger.info("Skipping Groq analysis (no API key available)")
+                logger.info("⏭️ Skipping Groq analysis (no API key available)")
                 pruned_context = semantic_context
             
+            log_json_pretty(pruned_context, "📋 Pruned context after Groq analysis:")
+            
             # Apply tool limits to keep context concise
+            logger.info("🔧 Applying tool limits for context...")
             limited_context = self._limit_tools_for_context(pruned_context)
             
-            logger.info(f"Final pruned context: {len(limited_context.get('triggers', []))} triggers, {len(limited_context.get('actions', []))} actions")
+            logger.info(f"✅ Final pruned context: {len(limited_context.get('triggers', []))} triggers, {len(limited_context.get('actions', []))} actions")
+            log_json_pretty(limited_context, "📋 Final limited context:")
             
+            log_function_exit("_retrieve_relevant_tools", limited_context, success=True)
             return limited_context
                 
         except Exception as e:
-            logger.error(f"Semantic + Groq tool retrieval failed: {e}")
+            logger.error(f"❌ Semantic + Groq tool retrieval failed: {e}")
             # Fallback to basic search if semantic search fails
-            logger.info("Falling back to basic search...")
-            return await self._fallback_basic_search_from_catalog(request)
+            logger.info("🔄 Falling back to basic search...")
+            result = await self._fallback_basic_search_from_catalog(request)
+            log_function_exit("_retrieve_relevant_tools", result, success=result is not None)
+            return result
     
     def _convert_semantic_results_to_catalog(self, search_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -647,6 +708,7 @@ There are two kinds of trigger available:
 - For `event_based` triggers, the slug in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
 - Action slugs in your response MUST be an EXACT match to a slug from the **Actions** section of `<available_tools>`.
 - ⚠️  CRITICAL: NEVER use a trigger slug as an action slug or vice versa. Triggers and actions are completely separate.
+- ⚠️  CRITICAL: You MUST use the EXACT slug names as they appear in the <available_tools> section. Do not modify, abbreviate, or guess action names.
 - If a suitable workflow cannot be built, return `null` for `trigger_slug` and an empty list for `action_slugs`.
 
 **Example 1 (Event-Based):**
@@ -670,7 +732,7 @@ Every Friday, get the total number of new customers from Stripe and post it to t
 {{
     "reasoning": "The workflow needs to run on a schedule, specifically every Friday. Therefore, a schedule-based trigger is required. The first action is to list customers from Stripe to get the data. The second action is to post the summarized data to a Slack channel.",
     "trigger_slug": "SCHEDULE_BASED",
-    "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_POST_MESSAGE"]
+    "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_SEND_MESSAGE"]
 }}
 
 Now, analyze the user request provided at the top and generate the JSON response."""
@@ -681,51 +743,82 @@ Now, analyze the user request provided at the top and generate the JSON response
         """
         Use the original Groq approach for selected apps - builds toolkit context and gets exact tool selection.
         """
+        log_function_entry("_groq_analyze_selected_apps", user_prompt=user_prompt, selected_apps=selected_apps)
+        
         try:
             # Prepare available toolkits for the selected apps
+            logger.info("🔍 Preparing available toolkits for selected apps...")
             available_toolkits = []
             catalog_data = await self.catalog_manager.get_catalog_data()
+            log_json_pretty(list(catalog_data.keys())[:10], "📋 Available catalog providers (first 10):")
             
             for app_slug in selected_apps:
+                logger.info(f"🔍 Looking for toolkit: {app_slug}")
                 if app_slug in catalog_data:
                     toolkit_data = catalog_data[app_slug]
                     available_toolkits.append({
                         'slug': app_slug,
                         'description': toolkit_data.get('description', '')
                     })
+                    logger.info(f"✅ Found toolkit: {app_slug}")
+                    log_json_pretty(toolkit_data, f"📋 Toolkit data for {app_slug}:")
+                else:
+                    logger.warning(f"⚠️ Toolkit not found in catalog: {app_slug}")
             
             if not available_toolkits:
-                logger.warning("No toolkits found for selected apps")
-                return {'triggers': [], 'actions': [], 'providers': {}}
+                logger.warning("❌ No toolkits found for selected apps")
+                result = {'triggers': [], 'actions': [], 'providers': {}}
+                log_function_exit("_groq_analyze_selected_apps", result, success=False)
+                return result
+            
+            log_json_pretty(available_toolkits, "📋 Available toolkits for Groq analysis:")
             
             # Build the original Groq prompt
+            logger.info("🔧 Building Groq tool selection prompt...")
             groq_prompt = await self._build_groq_tool_selection_prompt(user_prompt, available_toolkits)
+            logger.info(f"📝 Groq prompt length: {len(groq_prompt)} characters")
+            logger.info(f"📝 Groq prompt preview: {groq_prompt[:500]}...")
             
             # Call Groq API
-            logger.info(f"Calling Groq API to analyze {len(available_toolkits)} selected toolkits...")
+            logger.info(f"🤖 Calling Groq API to analyze {len(available_toolkits)} selected toolkits...")
             response = await self._call_groq_api(groq_prompt)
             
             if not response:
-                logger.warning("Groq API call failed, returning empty context")
-                return {'triggers': [], 'actions': [], 'providers': {}}
+                logger.warning("❌ Groq API call failed, returning empty context")
+                result = {'triggers': [], 'actions': [], 'providers': {}}
+                log_function_exit("_groq_analyze_selected_apps", result, success=False)
+                return result
+            
+            logger.info(f"✅ Groq API response received: {len(response)} characters")
+            logger.info(f"📝 Groq response: {response}")
             
             # Parse Groq response to get exact tool selection
+            logger.info("🔍 Parsing Groq tool selection response...")
             tool_selection = self._parse_groq_tool_selection_response(response)
             
             if not tool_selection:
-                logger.warning("Failed to parse Groq tool selection, returning empty context")
-                return {'triggers': [], 'actions': [], 'providers': {}}
+                logger.warning("❌ Failed to parse Groq tool selection, returning empty context")
+                result = {'triggers': [], 'actions': [], 'providers': {}}
+                log_function_exit("_groq_analyze_selected_apps", result, success=False)
+                return result
+            
+            log_json_pretty(tool_selection, "📋 Parsed tool selection:")
             
             # Convert tool selection to catalog format
+            logger.info("🔄 Converting tool selection to catalog format...")
             catalog_context = self._convert_tool_selection_to_catalog(tool_selection, catalog_data)
             
-            logger.info(f"Groq selected: {tool_selection.get('trigger_slug', 'None')} trigger, {len(tool_selection.get('action_slugs', []))} actions")
+            logger.info(f"✅ Groq selected: {tool_selection.get('trigger_slug', 'None')} trigger, {len(tool_selection.get('action_slugs', []))} actions")
+            log_json_pretty(catalog_context, "📋 Final catalog context:")
             
+            log_function_exit("_groq_analyze_selected_apps", catalog_context, success=True)
             return catalog_context
             
         except Exception as e:
-            logger.error(f"Groq selected apps analysis failed: {e}")
-            return {'triggers': [], 'actions': [], 'providers': {}}
+            logger.error(f"❌ Groq selected apps analysis failed: {e}")
+            result = {'triggers': [], 'actions': [], 'providers': {}}
+            log_function_exit("_groq_analyze_selected_apps", result, success=False)
+            return result
     
     def _parse_groq_tool_selection_response(self, response: str) -> Optional[Dict[str, Any]]:
         """Parse the original Groq tool selection response."""
@@ -754,6 +847,8 @@ Now, analyze the user request provided at the top and generate the JSON response
     
     def _convert_tool_selection_to_catalog(self, tool_selection: Dict[str, Any], catalog_data: Dict[str, Any]) -> Dict[str, Any]:
         """Convert Groq tool selection to catalog format."""
+        log_function_entry("_convert_tool_selection_to_catalog", tool_selection=tool_selection)
+        
         catalog_context = {
             'triggers': [],
             'actions': [],
@@ -762,13 +857,31 @@ Now, analyze the user request provided at the top and generate the JSON response
         
         # Find and add the selected trigger
         trigger_slug = tool_selection.get('trigger_slug')
-        if trigger_slug and trigger_slug != 'SCHEDULE_BASED':
-            # Find the trigger in the catalog
-            for provider_slug, provider_data in catalog_data.items():
-                triggers = provider_data.get('triggers', [])
-                for trigger in triggers:
-                    if trigger.get('slug') == trigger_slug:
-                        catalog_context['triggers'].append({
+        logger.info(f"🔍 Processing trigger: {trigger_slug}")
+        
+        if trigger_slug:
+            if trigger_slug == 'SCHEDULE_BASED':
+                # Add a schedule-based trigger
+                logger.info("📅 Adding SCHEDULE_BASED trigger")
+                catalog_context['triggers'].append({
+                    'slug': 'SCHEDULE_BASED',
+                    'name': 'Schedule Based Trigger',
+                    'description': 'Trigger that runs on a schedule',
+                    'toolkit_slug': 'system',
+                    'toolkit_name': 'System',
+                    'trigger_slug': 'SCHEDULE_BASED',
+                    'metadata': {'type': 'schedule_based'}
+                })
+            else:
+                # Find the trigger in the catalog
+                logger.info(f"🔍 Searching for trigger '{trigger_slug}' in catalog...")
+                trigger_found = False
+                for provider_slug, provider_data in catalog_data.items():
+                    triggers = provider_data.get('triggers', [])
+                    for trigger in triggers:
+                        if trigger.get('slug') == trigger_slug:
+                            logger.info(f"✅ Found trigger '{trigger_slug}' in provider '{provider_slug}'")
+                            catalog_context['triggers'].append({
                             'slug': trigger.get('slug', ''),
                             'name': trigger.get('name', ''),
                             'description': trigger.get('description', ''),
@@ -778,22 +891,33 @@ Now, analyze the user request provided at the top and generate the JSON response
                             'metadata': trigger
                         })
                         
-                        # Add provider info
-                        catalog_context['providers'][provider_slug] = {
+                            # Add provider info
+                            catalog_context['providers'][provider_slug] = {
                             'name': provider_data.get('name', ''),
                             'description': provider_data.get('description', ''),
                             'category': provider_data.get('category', '')
                         }
+                            trigger_found = True
+                            break
+                    if trigger_found:
                         break
+                
+                if not trigger_found:
+                    logger.warning(f"⚠️ Trigger '{trigger_slug}' not found in catalog")
         
         # Find and add the selected actions
         action_slugs = tool_selection.get('action_slugs', [])
+        logger.info(f"🔍 Processing {len(action_slugs)} actions: {action_slugs}")
+        
         for action_slug in action_slugs:
+            logger.info(f"🔍 Searching for action '{action_slug}' in catalog...")
+            action_found = False
             # Find the action in the catalog
             for provider_slug, provider_data in catalog_data.items():
                 actions = provider_data.get('actions', [])
                 for action in actions:
                     if action.get('slug') == action_slug:
+                        logger.info(f"✅ Found action '{action_slug}' in provider '{provider_slug}'")
                         catalog_context['actions'].append({
                             'slug': action.get('slug', ''),
                             'name': action.get('name', ''),
@@ -811,10 +935,18 @@ Now, analyze the user request provided at the top and generate the JSON response
                                 'description': provider_data.get('description', ''),
                                 'category': provider_data.get('category', '')
                             }
+                        action_found = True
                         break
+                if action_found:
+                    break
+            
+            if not action_found:
+                logger.warning(f"⚠️ Action '{action_slug}' not found in catalog")
         
-        logger.info(f"Converted tool selection to {len(catalog_context['triggers'])} triggers and {len(catalog_context['actions'])} actions")
+        logger.info(f"✅ Converted tool selection to {len(catalog_context['triggers'])} triggers and {len(catalog_context['actions'])} actions")
+        log_json_pretty(catalog_context, "📋 Final converted catalog context:")
         
+        log_function_exit("_convert_tool_selection_to_catalog", catalog_context, success=True)
         return catalog_context
     
     async def _fallback_basic_search_from_catalog(self, request: GenerationRequest) -> Optional[Dict[str, Any]]:
@@ -1282,6 +1414,7 @@ There are two kinds of trigger available:
 - For `event_based` triggers, the slug in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
 - Action slugs in your response MUST be an EXACT match to a slug from the **Actions** section of `<available_tools>`.
 - ⚠️  CRITICAL: NEVER use a trigger slug as an action slug or vice versa. Triggers and actions are completely separate.
+- ⚠️  CRITICAL: You MUST use the EXACT slug names as they appear in the <available_tools> section. Do not modify, abbreviate, or guess action names.
 - If a suitable workflow cannot be built, return `null` for `trigger_slug` and an empty list for `action_slugs`.
 
 **Example 1 (Event-Based):**
@@ -1305,7 +1438,7 @@ Every Friday, get the total number of new customers from Stripe and post it to t
 {{
     "reasoning": "The workflow needs to run on a schedule, specifically every Friday. Therefore, a schedule-based trigger is required. The first action is to list customers from Stripe to get the data. The second action is to post the summarized data to a Slack channel.",
     "trigger_slug": "SCHEDULE_BASED",
-    "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_POST_MESSAGE"]
+    "action_slugs": ["STRIPE_LIST_CUSTOMERS", "SLACK_SEND_MESSAGE"]
 }}
 
 Now, analyze the user request provided at the top and generate the JSON response."""
