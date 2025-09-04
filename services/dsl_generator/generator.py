@@ -682,7 +682,8 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
                     desc = a.get('description', 'No description.')
                     tool_context_str += f"    - slug: \"{slug}\", description: \"{desc}\"\n"
 
-        prompt = f"""You are an expert workflow architect. Your job is to analyze a user's request and design a logical sequence of operations by selecting ONE trigger and one or more actions from a comprehensive catalog of available tools.
+        prompt = f"""You are an expert workflow architect. 
+        Your job is to analyze a user's request and design a logical sequence of operations by selecting ONE trigger and one or more actions from a comprehensive catalog of available tools.
 
 <user_request>
 {user_prompt}
@@ -699,11 +700,19 @@ There are two kinds of trigger available:
 2. **schedule_based**" This is a generic trigger for time-based workflows. You MUST use the exact slug "SCHEDULE_BASED" for the `trigger_slug` if the user's request mentions a schedule, like "every morning", "at 8 PM", "on Fridays", "weekly", or any other time-based interval.
 
 **Your Task:**
-1.  **Reasoning:** First, think step-by-step about how to accomplish the user's goal with the available tools.
-2.  **Tool Selection:** Based on your reasoning, select exactly ONE trigger and a sequence of one or more actions.
-3.  **JSON Output:** Your response MUST be a JSON object with three keys: "reasoning", "trigger_slug", and "action_slugs".
+Your thought process MUST follow these steps in order:
+
+1.  **Trigger Type Analysis:** First, Analyze the <user_request> to determine the trigger type. Is it **event_based** (starts when something happens in an app) or **schedule_based** (starts at a specific time or interval like "every day")
+
+2. **Tool Selection:**
+    * If the trigger type is **schedule_based**, your `trigger_slug` MUST be exactly "SCHEDULE_BASED". Then, select the actions needed to fufill the request.
+    * If the trigger type is **event_based**, select exactly INE trigger from the <available_tools> list that matches the event. Then select the necessary actions.
+    
+3. **JSON OUTPUT:** Your response MUST be a JSON object with three keys: "reasoning", "trigger_slug", and "action_slugs". In your reasoning, you must state the trigger type you identified and why.
+
 
 **Rules for Tool Selection:**
+- ⚠️ CRITICAL: If your analysis in Step 1 identifies a schedule, you MUST use "SCHEDULE_BASED" as the `trigger_slug`. No exceptions.
 - If the request is time-based, you MUST use "SCHEDULE_BASED" as the `trigger_slug`.
 - For `event_based` triggers, the slug in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
 - Action slugs in your response MUST be an EXACT match to a slug from the **Actions** section of `<available_tools>`.

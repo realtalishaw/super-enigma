@@ -18,10 +18,6 @@ catalog_router = APIRouter(prefix="/catalog", tags=["Catalog"])
 catalog_router.include_router(providers_router)
 catalog_router.include_router(tools_router)
 
-async def get_global_cache_service():
-    """Get the global cache service instance"""
-    from api.cache_service import get_global_cache_service
-    return await get_global_cache_service()
 
 @catalog_router.get("")
 async def get_catalog(
@@ -40,6 +36,7 @@ async def get_catalog(
     """
     try:
         # Get the global cache service
+        from api.cache_service import get_global_cache_service
         cache_service = await get_global_cache_service()
         
         if not cache_service.is_initialized():
@@ -339,6 +336,7 @@ async def get_categories():
     """Get all available toolkit categories using cached data"""
     try:
         # Get the global cache service
+        from api.cache_service import get_global_cache_service
         cache_service = await get_global_cache_service()
         
         if not cache_service.is_initialized():

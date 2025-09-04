@@ -10,16 +10,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/providers", tags=["Catalog"])
 
-async def get_global_cache_service():
-    """Get the global cache service instance"""
-    from api.cache_service import get_global_cache_service
-    return await get_global_cache_service()
 
 @router.get("/{provider_slug}")
 async def get_provider(provider_slug: str):
     """Get toolkit information by slug with all associated tools using cached data"""
     try:
         # Get the global cache service
+        from api.cache_service import get_global_cache_service
         cache_service = await get_global_cache_service()
         
         if not cache_service.is_initialized():

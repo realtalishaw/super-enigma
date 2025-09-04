@@ -10,10 +10,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tools", tags=["Catalog"])
 
-async def get_global_cache_service():
-    """Get the global cache service instance"""
-    from api.cache_service import get_global_cache_service
-    return await get_global_cache_service()
 
 async def _fallback_database_query(
     provider: Optional[str],
@@ -155,6 +151,7 @@ async def list_tools(
     """List tools with optional filtering and pagination using cached data"""
     try:
         # Get the global cache service
+        from api.cache_service import get_global_cache_service
         cache_service = await get_global_cache_service()
         
         if not cache_service.is_initialized():
@@ -252,6 +249,7 @@ async def get_tool(tool_name: str):
     """Get tool information by name using cached data"""
     try:
         # Get the global cache service
+        from api.cache_service import get_global_cache_service
         cache_service = await get_global_cache_service()
         
         if not cache_service.is_initialized():
@@ -269,7 +267,7 @@ async def get_tool(tool_name: str):
         for provider_slug, provider_data in catalog_cache.items():
             # Check actions
             for action in provider_data.get('actions', []):
-                if action.get('name') == tool_name:
+                if action.get('slug') == tool_name or action.get('name') == tool_name:
                     action['toolkit'] = {
                         'slug': provider_slug,
                         'name': provider_data.get('name', provider_slug),
@@ -282,7 +280,7 @@ async def get_tool(tool_name: str):
             
             # Check triggers
             for trigger in provider_data.get('triggers', []):
-                if trigger.get('name') == tool_name:
+                if trigger.get('slug') == tool_name or trigger.get('name') == tool_name:
                     trigger['toolkit'] = {
                         'slug': provider_slug,
                         'name': provider_data.get('name', provider_slug),
@@ -312,10 +310,12 @@ async def _fallback_get_tool_database(tool_name: str):
         client = AsyncIOMotorClient(database_url)
         database = client.get_database()
         
-        # Find tool by name
+        # Find tool by slug or name
         tool = await database.tools.find_one({
-            "name": tool_name,
-            "is_deprecated": False
+            "$or": [
+                {"slug": tool_name, "is_deprecated": False},
+                {"name": tool_name, "is_deprecated": False}
+            ]
         })
         
         if not tool:
