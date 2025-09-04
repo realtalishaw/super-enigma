@@ -70,6 +70,19 @@ class DSLGeneratorService:
     This approach is much more reliable than sending the entire catalog to the LLM.
     """
     
+    # System-essential tools that must be available when Groq analysis fails
+    SYSTEM_ESSENTIAL_TRIGGERS = [
+        {
+            'slug': 'SCHEDULE_BASED',
+            'name': 'Schedule Based Trigger',
+            'description': 'A trigger that runs on a schedule (e.g., "every day", "at 8 AM", "on Fridays").',
+            'toolkit_slug': 'system',
+            'toolkit_name': 'System',
+            'trigger_slug': 'SCHEDULE_BASED',
+            'metadata': {'type': 'schedule_based'}
+        }
+    ]
+    
     def __init__(self, anthropic_api_key: Optional[str] = None):
         """
         Initialize the DSL generator service.
@@ -296,20 +309,22 @@ class DSLGeneratorService:
             logger.info(f"✅ Semantic search found {len(search_results)} potentially relevant tools")
             log_json_pretty(search_results[:5], "📋 Sample semantic search results (first 5):")
             
+            # Pre-filter semantic search results to keep only top N most relevant
+            logger.info("🔧 Pre-filtering semantic results to keep top 5 triggers and top 15 actions...")
+            prefiltered_results = self._prefilter_semantic_results(search_results, max_triggers=5, max_actions=15)
+            logger.info(f"✅ Pre-filtered from {len(search_results)} to {len(prefiltered_results)} results")
+            
             # Convert semantic search results to the expected catalog format
             logger.info("🔄 Converting semantic results to catalog format...")
-            semantic_context = self._convert_semantic_results_to_catalog(search_results)
+            semantic_context = self._convert_semantic_results_to_catalog(prefiltered_results)
             log_json_pretty(semantic_context, "📋 Converted semantic context:")
             
             # Step 2: Use Groq LLM to analyze and select the best tools for the specific task
-            if self.groq_api_key and not request.selected_apps:
-                # Use semantic search results for Groq analysis when no specific apps are selected
+            # ALWAYS use semantic search results for Groq analysis, regardless of selected_apps
+            # This prevents prompt bloat and maintains efficiency
+            if self.groq_api_key:
                 logger.info("🤖 Using Groq LLM to analyze and select best tools from semantic results")
                 pruned_context = await self._groq_analyze_semantic_results(request.user_prompt, semantic_context)
-            elif self.groq_api_key and request.selected_apps:
-                # Use original Groq approach when specific apps are selected
-                logger.info("🤖 Using original Groq approach for selected apps")
-                pruned_context = await self._groq_analyze_selected_apps(request.user_prompt, request.selected_apps)
             else:
                 logger.info("⏭️ Skipping Groq analysis (no API key available)")
                 pruned_context = semantic_context
@@ -399,6 +414,44 @@ class DSLGeneratorService:
         
         return pruned_context
     
+    def _prefilter_semantic_results(self, search_results: List[Dict[str, Any]], max_triggers: int = 5, max_actions: int = 15) -> List[Dict[str, Any]]:
+        """
+        Pre-filter semantic search results to keep only the top N most relevant results.
+        
+        Args:
+            search_results: List of semantic search results
+            max_triggers: Maximum number of triggers to keep
+            max_actions: Maximum number of actions to keep
+            
+        Returns:
+            Pre-filtered list of semantic search results
+        """
+        triggers = []
+        actions = []
+        
+        # Separate triggers and actions
+        for result in search_results:
+            item_type = result['item'].get('type', '')
+            if item_type == 'trigger':
+                triggers.append(result)
+            elif item_type == 'action':
+                actions.append(result)
+        
+        # Sort by similarity score (highest first) and take top N
+        triggers.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        actions.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        
+        # Take only the top N results
+        top_triggers = triggers[:max_triggers]
+        top_actions = actions[:max_actions]
+        
+        # Combine and return
+        prefiltered = top_triggers + top_actions
+        
+        logger.info(f"Pre-filtered results: {len(top_triggers)} triggers (from {len(triggers)}), {len(top_actions)} actions (from {len(actions)})")
+        
+        return prefiltered
+    
     async def _groq_analyze_semantic_results(self, user_prompt: str, semantic_context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Use Groq LLM to analyze semantic search results and select the best tools for the specific task.
@@ -449,6 +502,9 @@ class DSLGeneratorService:
             
             if not response:
                 logger.warning("Groq API call failed, returning semantic results as-is")
+                # Inject system-essential triggers into the fallback context
+                semantic_context['triggers'].extend(self.SYSTEM_ESSENTIAL_TRIGGERS)
+                logger.info("Injecting system-essential triggers into fallback context.")
                 return semantic_context
             
             # Parse Groq response to get selected tools
@@ -456,10 +512,34 @@ class DSLGeneratorService:
             
             if not selected_tools:
                 logger.warning("Failed to parse Groq response, returning semantic results as-is")
+                # Inject system-essential triggers into the fallback context
+                semantic_context['triggers'].extend(self.SYSTEM_ESSENTIAL_TRIGGERS)
+                logger.info("Injecting system-essential triggers into fallback context.")
                 return semantic_context
             
             # Filter the semantic context based on Groq selection
             refined_context = self._filter_context_by_groq_selection(semantic_context, selected_tools)
+            
+            # --- FALLBACK LOGIC: If filtering resulted in zero tools, use a subset of semantic results ---
+            total_filtered_tools = len(refined_context.get('triggers', [])) + len(refined_context.get('actions', []))
+            if total_filtered_tools == 0:
+                logger.warning("⚠️ Tool filtering resulted in zero tools! Using fallback logic...")
+                
+                # Take the top 5 most relevant tools from semantic search as fallback
+                fallback_triggers = semantic_context.get('triggers', [])[:3]  # Top 3 triggers
+                fallback_actions = semantic_context.get('actions', [])[:5]    # Top 5 actions
+                
+                # Inject system-essential triggers into the fallback context
+                fallback_triggers.extend(self.SYSTEM_ESSENTIAL_TRIGGERS)
+                logger.info("Injecting system-essential triggers into zero-tools fallback context.")
+                
+                refined_context = {
+                    'triggers': fallback_triggers,
+                    'actions': fallback_actions,
+                    'providers': semantic_context.get('providers', {})
+                }
+                
+                logger.info(f"🔄 Fallback: Using top {len(fallback_triggers)} triggers and {len(fallback_actions)} actions from semantic search")
             
             logger.info(f"Groq analysis selected {len(selected_tools)} tools from {len(all_tools)} semantic results")
             
@@ -534,13 +614,17 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
         try:
             import httpx
             
+            # Log the input prompt for debugging
+            logger.info(f"Groq API call - Input prompt length: {len(prompt)} characters")
+            logger.debug(f"Groq API call - Input prompt:\n{prompt}")
+            
             headers = {
                 "Authorization": f"Bearer {self.groq_api_key}",
                 "Content-Type": "application/json"
             }
             
             payload = {
-                "model": "llama-3.1-8b-instant",  # Current fast model for analysis
+                "model": "openai/gpt-oss-20b",  # DO NOT CHANGE THIS MODEL
                 "messages": [
                     {
                         "role": "user",
@@ -548,7 +632,8 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
                     }
                 ],
                 "temperature": 0.1,  # Low temperature for consistent analysis
-                "max_tokens": 2000
+                "max_tokens": 8192,
+                "response_format": {"type": "json_object"}
             }
             
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -560,13 +645,21 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
                 
                 if response.status_code == 200:
                     result = response.json()
-                    return result["choices"][0]["message"]["content"]
+                    response_content = result["choices"][0]["message"]["content"]
+                    
+                    # Log the output response for debugging
+                    logger.info(f"Groq API call - Response length: {len(response_content)} characters")
+                    logger.debug(f"Groq API call - Response content:\n{response_content}")
+                    
+                    return response_content
                 else:
                     logger.error(f"Groq API error: {response.status_code} - {response.text}")
+                    logger.error(f"Groq API call - Failed request payload: {payload}")
                     return None
                     
         except Exception as e:
             logger.error(f"Groq API call failed: {e}")
+            logger.error(f"Groq API call - Input prompt that failed:\n{prompt}")
             return None
     
     def _parse_groq_tool_selection(self, response: str) -> List[Dict[str, Any]]:
@@ -579,58 +672,105 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if not json_match:
                 logger.error("No JSON found in Groq response")
+                logger.error(f"Raw Groq Response (no JSON found):\n{response}")
                 return []
             
             json_str = json_match.group(0)
-            data = json.loads(json_str)
+            
+            # Wrap JSON parsing in try-except for better error handling
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Groq JSON response: {e}")
+                logger.error(f"Raw Groq Response that failed parsing:\n{response}")
+                logger.error(f"Extracted JSON string that failed:\n{json_str}")
+                return []
             
             selected_tools = []
             
-            # Add selected triggers
-            for trigger in data.get('selected_triggers', []):
+            # Parse the new format: trigger_slug and action_slugs
+            trigger_slug = data.get('trigger_slug')
+            action_slugs = data.get('action_slugs', [])
+            
+            # Add trigger if present
+            if trigger_slug and trigger_slug != 'null':
                 selected_tools.append({
-                    'name': trigger.get('name', ''),
-                    'toolkit': trigger.get('toolkit', ''),
+                    'slug': trigger_slug,
                     'type': 'trigger',
-                    'reason': trigger.get('reason', '')
+                    'reason': data.get('reasoning', '')
                 })
             
-            # Add selected actions
-            for action in data.get('selected_actions', []):
-                selected_tools.append({
-                    'name': action.get('name', ''),
-                    'toolkit': action.get('toolkit', ''),
-                    'type': 'action',
-                    'reason': action.get('reason', '')
-                })
+            # Add actions
+            for action_slug in action_slugs:
+                if action_slug:  # Skip empty strings
+                    selected_tools.append({
+                        'slug': action_slug,
+                        'type': 'action',
+                        'reason': data.get('reasoning', '')
+                    })
             
             logger.info(f"Parsed {len(selected_tools)} selected tools from Groq response")
+            logger.info(f"Selected tools: {[t['slug'] for t in selected_tools]}")
             return selected_tools
             
         except Exception as e:
             logger.error(f"Failed to parse Groq response: {e}")
+            logger.error(f"Raw Groq Response that caused exception:\n{response}")
             return []
     
     def _filter_context_by_groq_selection(self, semantic_context: Dict[str, Any], selected_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Filter the semantic context based on Groq's tool selection."""
         
-        # Create sets of selected tool names and toolkits for efficient lookup
-        selected_triggers = {(t['name'], t['toolkit']) for t in selected_tools if t['type'] == 'trigger'}
-        selected_actions = {(t['name'], t['toolkit']) for t in selected_tools if t['type'] == 'action'}
+        # --- THIS IS THE FIX ---
+        # Groq's response is less reliable on 'name' but we can trust its reasoning.
+        # The semantic context has the original, accurate slugs.
+        # We should match based on the SLUG of the tool, not its name.
+        # Note: Groq doesn't provide the slug, so we must rely on its name selection
+        # being close enough. A more robust solution would be to have Groq return slugs.
+        # For now, let's keep the current logic but be aware of its fragility.
+        # A better immediate fix is to re-examine the Groq prompt.
         
-        # Filter triggers
+        # --- LET'S RE-EVALUATE THE CORE PROBLEM ---
+        # The problem isn't the filter function itself, but the Groq prompt that generates the selection.
+        # The `_build_groq_tool_analysis_prompt` asks for "exact tool name", but this is what's failing.
+        # It should be asking for the SLUG.
+        
+        # Let's adjust the prompt first, as that is less invasive.
+        # If that fails, we can implement fuzzy matching here.
+        # (No code change in this function for now, let's focus on the prompt and the validator)
+
+        # ... keeping your existing logic for now, but the fragility is noted.
+        # The real fix is the Validator fix below.
+        
+        # --- FIXED: Now using slugs for matching instead of names ---
+        # Groq now returns slugs, so we can do exact matching
+        
+        # Create sets of selected tool slugs for efficient lookup
+        selected_trigger_slugs = {t['slug'] for t in selected_tools if t['type'] == 'trigger'}
+        selected_action_slugs = {t['slug'] for t in selected_tools if t['type'] == 'action'}
+        
+        logger.info(f"Selected trigger slugs: {selected_trigger_slugs}")
+        logger.info(f"Selected action slugs: {selected_action_slugs}")
+        
+        # Filter triggers by slug
         filtered_triggers = []
         for trigger in semantic_context.get('triggers', []):
-            trigger_key = (trigger.get('name', ''), trigger.get('toolkit_name', ''))
-            if trigger_key in selected_triggers:
+            trigger_slug = trigger.get('slug', '')
+            if trigger_slug in selected_trigger_slugs:
                 filtered_triggers.append(trigger)
+                logger.info(f"✅ Matched trigger: {trigger_slug}")
+            else:
+                logger.debug(f"❌ Trigger not selected: {trigger_slug}")
         
-        # Filter actions
+        # Filter actions by slug
         filtered_actions = []
         for action in semantic_context.get('actions', []):
-            action_key = (action.get('name', ''), action.get('toolkit_name', ''))
-            if action_key in selected_actions:
+            action_slug = action.get('slug', '')
+            if action_slug in selected_action_slugs:
                 filtered_actions.append(action)
+                logger.info(f"✅ Matched action: {action_slug}")
+            else:
+                logger.debug(f"❌ Action not selected: {action_slug}")
         
         # Build refined context
         refined_context = {
@@ -712,6 +852,7 @@ Your thought process MUST follow these steps in order:
 
 
 **Rules for Tool Selection:**
+- ⚠️  **GOLDEN RULE:** If the user's request contains ANY time-based words (e.g., "every morning", "at 8 PM", "daily", "weekly", "on Fridays"), you MUST use "SCHEDULE_BASED" as the `trigger_slug`. This rule overrides all other keywords or application names mentioned in the prompt.
 - ⚠️ CRITICAL: If your analysis in Step 1 identifies a schedule, you MUST use "SCHEDULE_BASED" as the `trigger_slug`. No exceptions.
 - If the request is time-based, you MUST use "SCHEDULE_BASED" as the `trigger_slug`.
 - For `event_based` triggers, the slug in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
@@ -793,8 +934,13 @@ Now, analyze the user request provided at the top and generate the JSON response
             response = await self._call_groq_api(groq_prompt)
             
             if not response:
-                logger.warning("❌ Groq API call failed, returning empty context")
-                result = {'triggers': [], 'actions': [], 'providers': {}}
+                logger.warning("❌ Groq API call failed, returning empty context with system essential tools")
+                result = {
+                    'triggers': self.SYSTEM_ESSENTIAL_TRIGGERS.copy(),
+                    'actions': [],
+                    'providers': {}
+                }
+                logger.info("Injecting system-essential triggers into selected apps fallback context.")
                 log_function_exit("_groq_analyze_selected_apps", result, success=False)
                 return result
             
@@ -881,6 +1027,18 @@ Now, analyze the user request provided at the top and generate the JSON response
                     'trigger_slug': 'SCHEDULE_BASED',
                     'metadata': {'type': 'schedule_based'}
                 })
+                
+                # Add the system provider to the providers dictionary
+                # This ensures the validator recognizes "system" as a valid toolkit_slug
+                catalog_context['providers']['system'] = {
+                    'name': 'System',
+                    'description': 'System-level tools and triggers for workflow automation',
+                    'category': 'system',
+                    'slug': 'system',
+                    'actions': [],  # System provider has no actions
+                    'triggers': []  # System provider has no triggers (schedule is handled separately)
+                }
+                logger.info("🔧 Added system provider to catalog context")
             else:
                 # Find the trigger in the catalog
                 logger.info(f"🔍 Searching for trigger '{trigger_slug}' in catalog...")
@@ -900,14 +1058,17 @@ Now, analyze the user request provided at the top and generate the JSON response
                             'metadata': trigger
                         })
                         
-                            # Add provider info
-                            catalog_context['providers'][provider_slug] = {
+                                                    # Add provider info
+                        catalog_context['providers'][provider_slug] = {
                             'name': provider_data.get('name', ''),
                             'description': provider_data.get('description', ''),
-                            'category': provider_data.get('category', '')
+                            'category': provider_data.get('category', ''),
+                            'slug': provider_slug,
+                            'actions': provider_data.get('actions', []),
+                            'triggers': provider_data.get('triggers', [])
                         }
-                            trigger_found = True
-                            break
+                        trigger_found = True
+                        break
                     if trigger_found:
                         break
                 
@@ -942,7 +1103,10 @@ Now, analyze the user request provided at the top and generate the JSON response
                             catalog_context['providers'][provider_slug] = {
                                 'name': provider_data.get('name', ''),
                                 'description': provider_data.get('description', ''),
-                                'category': provider_data.get('category', '')
+                                'category': provider_data.get('category', ''),
+                                'slug': provider_slug,
+                                'actions': provider_data.get('actions', []),
+                                'triggers': provider_data.get('triggers', [])
                             }
                         action_found = True
                         break
@@ -1602,7 +1766,7 @@ Now, analyze the user request provided at the top and generate the JSON response
         return toolkit_mapping
 
     def _generate_dynamic_example(self, catalog_context: Dict[str, Any]) -> str:
-        """Generate a dynamic example based on the available tools in the catalog context."""
+        """Generate dynamic examples based on the available tools in the catalog context."""
         
         # Find the first available toolkit with both triggers and actions
         example_toolkit = None
@@ -1624,12 +1788,13 @@ Now, analyze the user request provided at the top and generate the JSON response
         trigger_slug = example_trigger.get('slug') or example_trigger.get('name') or "EXAMPLE_TRIGGER"
         action_name = example_action.get('slug') or example_action.get('name') or "EXAMPLE_ACTION"
         
-        # Generate a contextual example
-        example = f"""{{
+        # Generate both event-based and schedule-based examples
+        examples = f"""**Example 1 (Event-Based):**
+{{
 "schema_type": "template",
 "workflow": {{
-"name": "Example Workflow using {example_toolkit.title()}",
-"description": "Example workflow using {example_toolkit} toolkit",
+"name": "Event-Based Workflow using {example_toolkit.title()}",
+"description": "Example event-based workflow using {example_toolkit} toolkit",
 "triggers": [{{
 "id": "example_trigger",
 "type": "event_based",
@@ -1652,17 +1817,48 @@ Now, analyze the user request provided at the top and generate the JSON response
 "type": "string",
 "required": true
 }}]
+}}
+
+**Example 2 (Schedule-Based):**
+{{
+"schema_type": "template",
+"workflow": {{
+"name": "Schedule-Based Workflow",
+"description": "Example schedule-based workflow that runs daily",
+"triggers": [{{
+"id": "schedule_trigger",
+"type": "schedule_based",
+"toolkit_slug": "system",
+"composio_trigger_slug": "SCHEDULE_BASED"
+}}],
+"actions": [{{
+"id": "example_action",
+"toolkit_slug": "{example_toolkit}",
+"action_name": "{action_name}",
+"required_inputs": [
+{{ "name": "example_param", "source": "{{{{inputs.example_input}}}}", "type": "string" }}
+],
+"depends_on": ["schedule_trigger"]
+}}]
+}},
+"missing_information": [{{
+"field": "inputs.example_input",
+"prompt": "What value should be used for the example parameter?",
+"type": "string",
+"required": true
+}}]
 }}"""
         
-        return example
+        return examples
     
     def _get_fallback_example(self) -> str:
-        """Return a fallback example when no suitable tools are available."""
-        return """{
+        """Return fallback examples when no suitable tools are available."""
+        return """**Example 1 (Event-Based):**
+{
 "schema_type": "template",
 "workflow": {
-"name": "Example Workflow",
-"description": "Example workflow structure",
+"name": "Example Event-Based Workflow",
+"description": "Example event-based workflow structure",
 "triggers": [{
 "id": "example_trigger",
 "type": "event_based",
@@ -1677,6 +1873,36 @@ Now, analyze the user request provided at the top and generate the JSON response
 { "name": "example_param", "source": "{{inputs.example_input}}", "type": "string" }
 ],
 "depends_on": ["example_trigger"]
+}]
+},
+"missing_information": [{
+"field": "inputs.example_input",
+"prompt": "What value should be used for the example parameter?",
+"type": "string",
+"required": true
+}]
+}
+
+**Example 2 (Schedule-Based):**
+{
+"schema_type": "template",
+"workflow": {
+"name": "Example Schedule-Based Workflow",
+"description": "Example schedule-based workflow structure",
+"triggers": [{
+"id": "schedule_trigger",
+"type": "schedule_based",
+"toolkit_slug": "system",
+"composio_trigger_slug": "SCHEDULE_BASED"
+}],
+"actions": [{
+"id": "example_action",
+"toolkit_slug": "example_toolkit",
+"action_name": "EXAMPLE_ACTION",
+"required_inputs": [
+{ "name": "example_param", "source": "{{inputs.example_input}}", "type": "string" }
+],
+"depends_on": ["schedule_trigger"]
 }]
 },
 "missing_information": [{
@@ -1800,22 +2026,39 @@ Now, analyze the user request provided at the top and generate the JSON response
 {tool_list_str}
 </available_tools>
 
+**IMPORTANT: Understanding Trigger Types**
+There are two kinds of trigger available:
+
+1. **event_based**: These are triggers from the <available_tools> list (e.g.; "SALESFORCE_NEW_LEAD_TRIGGER"). Use one of these when the user wants to start a workflow based on an event in a specific application.
+2. **schedule_based**: This is a generic trigger for time-based workflows. You MUST use the exact slug "SCHEDULE_BASED" for the `composio_trigger_slug` if the user's request mentions a schedule, like "every morning", "at 8 PM", "on Fridays", "weekly", or any other time-based interval.
+
 <instructions>
-1. Design a logical, multi-step workflow.
-2. Your output MUST conform to the `template` schema.
-3. Every object in `required_inputs` MUST have a "name", "source", and "type" key.
-4. Populate the `missing_information` array for any user inputs needed.
-5. Your response MUST be a single, valid JSON object and nothing else.
-6. NEVER invent or modify toolkit_slug, composio_trigger_slug, or action_name values.
-7. ONLY use the exact values from the <available_tools> section above.
-8. ⚠️  CRITICAL: Use triggers ONLY in the "triggers" array and actions ONLY in the "actions" array. NEVER use a trigger as an action or vice versa.
-9. If you're unsure about a value, use the first available option from the list.
-10. Every parameter MUST have a "type" field - this is CRITICAL for validation.
-11. Use "string", "number", "boolean", or "array" as type values.
-12. COPY AND PASTE the exact slug/name values - do not modify them.
-13. Your JSON MUST be parseable by Python's json.loads().
-14. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
-15. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
+1. **Trigger Type Analysis:** First, analyze the <user_request> to determine the trigger type. Is it **event_based** (starts when something happens in an app) or **schedule_based** (starts at a specific time or interval like "every day")?
+
+2. Design a logical, multi-step workflow.
+3. Your output MUST conform to the `template` schema.
+4. Every object in `required_inputs` MUST have a "name", "source", and "type" key.
+5. Populate the `missing_information` array for any user inputs needed.
+6. Your response MUST be a single, valid JSON object and nothing else.
+7. NEVER invent or modify toolkit_slug, composio_trigger_slug, or action_name values.
+8. ONLY use the exact values from the <available_tools> section above.
+9. ⚠️  CRITICAL: Use triggers ONLY in the "triggers" array and actions ONLY in the "actions" array. NEVER use a trigger as an action or vice versa.
+10. If you're unsure about a value, use the first available option from the list.
+11. Every parameter MUST have a "type" field - this is CRITICAL for validation.
+12. Use "string", "number", "boolean", or "array" as type values.
+13. COPY AND PASTE the exact slug/name values - do not modify them.
+14. Your JSON MUST be parseable by Python's json.loads().
+15. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
+16. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
+
+**Rules for Trigger Selection:**
+- ⚠️  **GOLDEN RULE:** If the user's request contains ANY time-based words (e.g., "every morning", "at 8 PM", "daily", "weekly", "on Fridays", "monthly", "hourly", "at 9 AM", "every day", "every week", "every month"), you MUST use "SCHEDULE_BASED" as the `composio_trigger_slug`. This rule overrides all other keywords or application names mentioned in the prompt.
+- ⚠️  **CRITICAL:** If your analysis in Step 1 identifies a schedule, you MUST use "SCHEDULE_BASED" as the `composio_trigger_slug`. No exceptions.
+- If the request is time-based, you MUST use "SCHEDULE_BASED" as the `composio_trigger_slug`.
+- For `event_based` triggers, the `composio_trigger_slug` in your response MUST be an EXACT match to a slug from the **Triggers** section of `<available_tools>`.
+- Action names in your response MUST be an EXACT match to a slug from the **Actions** section of `<available_tools>`.
+- ⚠️  CRITICAL: NEVER use a trigger slug as an action name or vice versa. Triggers and actions are completely separate.
+- ⚠️  CRITICAL: You MUST use the EXACT slug names as they appear in the <available_tools> section. Do not modify, abbreviate, or guess action names.
 </instructions>
 
 <dynamic_example>
@@ -1830,6 +2073,8 @@ CRITICAL: Your JSON MUST pass these validation rules:
 - All action_name values MUST exist in the available_tools
 - ⚠️  If no triggers are available, use: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
 - ⚠️  NEVER use "trigger_type" - always use "triggers" array format
+- ⚠️  **SCHEDULE DETECTION:** If the user request contains time-based words, you MUST use "SCHEDULE_BASED" as composio_trigger_slug
+- ⚠️  **SCHEDULE DETECTION:** Time-based words include: "every morning", "at 8 PM", "daily", "weekly", "on Fridays", "monthly", "hourly", "at 9 AM", "every day", "every week", "every month"
 - No markdown formatting or code blocks
 - Pure JSON only
 - Every field must be properly quoted
@@ -1844,6 +2089,8 @@ COMMON MISTAKES TO AVOID:
 - Do NOT invent new toolkit slugs or action names
 - Do NOT forget the "type" field in required_inputs
 - Do NOT use unquoted strings in JSON
+- ⚠️  **CRITICAL:** Do NOT miss time-based words in the user request - if you see "every", "daily", "weekly", "at [time]", "on [day]", you MUST use "SCHEDULE_BASED"
+- ⚠️  **CRITICAL:** Do NOT use event-based triggers when the user clearly wants a scheduled workflow
 </error_prevention>
 """
         if previous_errors:
@@ -1967,29 +2214,54 @@ Now, generate the complete JSON for the user's request."""
                 
                 # Perform comprehensive validation using WorkflowValidator
                 try:
-                    # Create GenerationContext for the validator with FULL catalog data
+                    # --- THIS IS THE FIX ---
+                    # Create the validation context from the LOCAL catalog_context
+                    # that was passed into this function, NOT the global catalog.
+                    # This ensures both Claude and the validator use the same pruned context.
+                    
                     schema_definition = self.context_builder._load_schema_definition()
                     
-                    # Get the full catalog data from the catalog manager
-                    full_catalog_data = await self.catalog_manager.get_catalog_data()
+                    # --- THIS IS THE FIX ---
+                    # The Pydantic model expects a LIST of provider objects, not a dictionary.
+                    # We must convert the dictionary's values into a list, but we need to preserve the slug.
+                    # The validator also expects actions and triggers to be embedded within each provider.
                     
-                    catalog_context_obj = CatalogContext(
-                        available_providers=list(full_catalog_data.values()),
-                        available_triggers=self.catalog_manager.extract_triggers(full_catalog_data),
-                        available_actions=self.catalog_manager.extract_actions(full_catalog_data),
+                    providers_dict_for_validation = catalog_context.get('providers', {})
+                    triggers_list = catalog_context.get('triggers', [])
+                    actions_list = catalog_context.get('actions', [])
+                    
+                    providers_list_for_validation = []
+                    for slug, provider_data in providers_dict_for_validation.items():
+                        # Ensure each provider object has a 'slug' field for the validator
+                        provider_with_slug = provider_data.copy()
+                        provider_with_slug['slug'] = slug
+                        
+                        # Embed the triggers and actions for this provider
+                        provider_triggers = [t for t in triggers_list if t.get('toolkit_slug') == slug]
+                        provider_actions = [a for a in actions_list if a.get('toolkit_slug') == slug]
+                        
+                        provider_with_slug['triggers'] = provider_triggers
+                        provider_with_slug['actions'] = provider_actions
+                        
+                        providers_list_for_validation.append(provider_with_slug)
+
+                    catalog_context_for_validation = CatalogContext(
+                        available_providers=providers_list_for_validation,  # Pass the list here
+                        available_triggers=catalog_context.get('triggers', []),
+                        available_actions=catalog_context.get('actions', []),
                         provider_categories=[]
                     )
                     
-                    generation_context = GenerationContext(
+                    generation_context_for_validation = GenerationContext(
                         request=request,
-                        catalog=catalog_context_obj,
+                        catalog=catalog_context_for_validation,
                         schema_definition=schema_definition
                     )
                     
-                    # Use WorkflowValidator for comprehensive validation
+                    # Use this new, correct context for validation.
                     validation_result = await self.workflow_validator.validate_generated_workflow(
                         dsl_dict, 
-                        generation_context, 
+                        generation_context_for_validation, 
                         "template"  # Assuming template workflow type
                     )
                     
