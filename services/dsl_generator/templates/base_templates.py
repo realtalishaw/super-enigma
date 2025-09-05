@@ -684,6 +684,11 @@ TEMPLATE_PROMPT_XML = """
   </inputs>
 
   <rules>
+      <rule>
+    **Trigger Selection MUST follow this logic:**
+    1. If the user's request contains time-based words (e.g., "every day", "at 8 AM", "weekly", "on Fridays"), you MUST use a `schedule_based` trigger with `toolkit_slug: "system"` and `composio_trigger_slug: "SCHEDULE_BASED"`.
+    2. If the request describes an event (e.g., "when a new file is added", "if a message is reacted to"), find and use the corresponding `event_based` trigger from the catalog.
+    </rule>
     <rule>Return ONLY valid JSON that matches the TemplateSchema. No markdown, no comments. NO ADDITIONAL TEXT OF ANY KIND</rule>
     <rule>Use ONLY toolkits/triggers/actions from the provided catalog. Never invent new ones.</rule>
     <rule>Every <code>toolkit_slug</code>, <code>composio_trigger_slug</code>, and <code>action_name</code> MUST exist in the catalog lists.</rule>
@@ -697,8 +702,16 @@ TEMPLATE_PROMPT_XML = """
     <rule>Do NOT include planning rationale or a <code>plan</code> object in the output. Output ONLY the DSL JSON.</rule>
     <rule>Output MUST include a top-level <code>schema_type</code> field (template/executable/dag).</rule>
     <rule>Set a reasonable integer <code>confidence</code> (1–100).</rule>
-    <rule>If the request cannot be satisfied with the catalog, output the simplest valid template using the most relevant available tools.</rule>
+    <rule>You MUST attempt to generate a complete, multi-step workflow that addresses all parts of the user's request. If a specific tool for a step is missing from the catalog, you MUST still include the other valid steps in the workflow.</rule>
   </rules>
+  
+  <thought_process>
+  <step>1. **Deconstruct the User Request:** Break down the <user_request> into a sequence of logical operations. For example, "When X happens, then do Y, then do Z."</step>
+  <step>2. **Select a Trigger:** First, analyze the sequence to identify the trigger. Is it based on an event ("when a new email arrives"), a schedule ("every morning"), or is it manual? Select the single best trigger from <available_triggers> that matches this initial operation.</step>
+  <step>3. **Select Actions for Each Step:** For every subsequent operation in your sequence, select the single best action from <available_actions>.</step>
+  <step>4. **Verify Completeness:** Ensure you have selected a tool for EVERY part of the user's request. If the request is "A -> B -> C", you MUST have tools for A, B, and C.</step>
+  <step>5. **Construct JSON:** Only after completing the steps above, generate the final JSON object based on your plan.</step>
+</thought_process>
 
   <missing_information_policy>
     <source_of_truth>Unresolved required inputs defined by the selected triggers/actions only.</source_of_truth>

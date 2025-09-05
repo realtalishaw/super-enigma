@@ -84,6 +84,14 @@ class GenerationResponse(BaseModel):
         default=None,
         description="Raw LLM response text prior to parsing (for debugging/evals)"
     )
+    is_exemplar: bool = Field(
+        default=False,
+        description="Whether this is an exemplar workflow for vague prompts"
+    )
+    exemplar_reason: Optional[str] = Field(
+        default=None,
+        description="Reason why an exemplar workflow was returned"
+    )
 
 
 class CatalogContext(BaseModel):

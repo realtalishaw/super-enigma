@@ -83,6 +83,17 @@ class DSLGeneratorService:
         }
     ]
     
+    # Golden toolkits that get priority boost in semantic search results
+    GOLDEN_TOOLKITS = {
+        "gmail", "discord", "slack", "whatsapp", "telegram", "twitter", "reddit", 
+        "linkedin", "facebook", "instagram", "youtube", "tiktok", "spotify", 
+        "google_calendar", "google_drive", "google_photos", "dropbox", "onedrive", 
+        "notion", "todoist", "coinbase", "shopify", "stripe", "google_maps", 
+        "google_sheets", "google_docs", "google_slides", "google_tasks", "excel", 
+        "trello", "asana", "ticktick", "canva", "pushbullet", "pexels", "tinypng", 
+        "splitwise", "ynab", "foursquare", "surveymonkey", "listennotes"
+    }
+    
     def __init__(self, anthropic_api_key: Optional[str] = None):
         """
         Initialize the DSL generator service.
@@ -153,6 +164,12 @@ class DSLGeneratorService:
         log_function_entry("generate_workflow", request=request)
         
         try:
+            # Check for vagueness and return exemplar workflows if detected
+            is_vague = await self._detect_vagueness(request.user_prompt)
+            if is_vague:
+                logger.info(f"🔍 Vague prompt detected. Returning exemplar workflows for '{is_vague['reason']}'.")
+                return self._get_exemplar_workflows(is_vague['reason'])
+            
             # Ensure service is initialized
             if not self.catalog_manager.catalog_service:
                 logger.info("🔧 Service not initialized, initializing now...")
@@ -309,9 +326,19 @@ class DSLGeneratorService:
             logger.info(f"✅ Semantic search found {len(search_results)} potentially relevant tools")
             log_json_pretty(search_results[:5], "📋 Sample semantic search results (first 5):")
             
+            # Apply Golden Toolkit priority boost
+            logger.info("⭐ Applying Golden Toolkit priority boost...")
+            boosted_results = self._apply_golden_toolkit_boost(search_results)
+            logger.info(f"✅ Applied priority boost to {len(boosted_results)} results")
+            
             # Pre-filter semantic search results to keep only top N most relevant
             logger.info("🔧 Pre-filtering semantic results to keep top 5 triggers and top 15 actions...")
-            prefiltered_results = self._prefilter_semantic_results(search_results, max_triggers=5, max_actions=15)
+            prefiltered_results = self._prefilter_semantic_results(
+                boosted_results, 
+                max_triggers=5, 
+                max_actions=15,
+                selected_apps=request.selected_apps
+            )
             logger.info(f"✅ Pre-filtered from {len(search_results)} to {len(prefiltered_results)} results")
             
             # Convert semantic search results to the expected catalog format
@@ -365,6 +392,9 @@ class DSLGeneratorService:
             'providers': {}
         }
         
+        # Always include essential system tools
+        self._add_essential_system_tools(pruned_context)
+        
         for result in search_results:
             item = result['item']
             item_type = item.get('type', '')
@@ -414,14 +444,54 @@ class DSLGeneratorService:
         
         return pruned_context
     
-    def _prefilter_semantic_results(self, search_results: List[Dict[str, Any]], max_triggers: int = 5, max_actions: int = 15) -> List[Dict[str, Any]]:
+    def _add_essential_system_tools(self, pruned_context: Dict[str, Any]) -> None:
+        """
+        Add essential system tools that should always be available.
+        
+        Args:
+            pruned_context: The catalog context to add essential tools to
+        """
+        # Add system provider
+        pruned_context['providers']['system'] = {
+            'name': 'System',
+            'description': 'System-level tools and triggers for workflow automation',
+            'category': 'system',
+            'slug': 'system'
+        }
+        
+        # Add SCHEDULE_BASED trigger
+        schedule_trigger = {
+            'slug': 'SCHEDULE_BASED',
+            'name': 'Schedule Based Trigger',
+            'description': 'Trigger that runs on a schedule (cron-based)',
+            'toolkit_slug': 'system',
+            'toolkit_name': 'System',
+            'trigger_slug': 'SCHEDULE_BASED',
+            'metadata': {
+                'type': 'schedule_based',
+                'essential': True
+            },
+            'similarity_score': 1.0  # High score to ensure it's always available
+        }
+        
+        # Only add if not already present
+        existing_schedule = any(t.get('trigger_slug') == 'SCHEDULE_BASED' for t in pruned_context['triggers'])
+        if not existing_schedule:
+            pruned_context['triggers'].append(schedule_trigger)
+            logger.info("✅ Added essential SCHEDULE_BASED trigger to catalog context")
+        
+        logger.info("✅ Added essential system tools to catalog context")
+    
+    def _prefilter_semantic_results(self, search_results: List[Dict[str, Any]], max_triggers: int = 5, max_actions: int = 15, selected_apps: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
         Pre-filter semantic search results to keep only the top N most relevant results.
+        If selected_apps is provided, ensures balanced representation across apps.
         
         Args:
             search_results: List of semantic search results
             max_triggers: Maximum number of triggers to keep
             max_actions: Maximum number of actions to keep
+            selected_apps: Optional list of selected app slugs for balanced selection
             
         Returns:
             Pre-filtered list of semantic search results
@@ -437,13 +507,37 @@ class DSLGeneratorService:
             elif item_type == 'action':
                 actions.append(result)
         
-        # Sort by similarity score (highest first) and take top N
-        triggers.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
-        actions.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        # If selected_apps is provided, use balanced selection per app
+        if selected_apps and len(selected_apps) > 1:
+            logger.info(f"🎯 Using balanced selection across {len(selected_apps)} apps: {selected_apps}")
+            top_triggers = self._select_balanced_tools(triggers, max_triggers, selected_apps, "triggers")
+            top_actions = self._select_balanced_tools(actions, max_actions, selected_apps, "actions")
+        elif not selected_apps:
+            # For vague prompts: auto-select best golden apps, then apply balanced selection
+            logger.info("🎯 No selected apps - auto-selecting best golden apps for balanced selection")
+            auto_selected_apps = self._auto_select_golden_apps(triggers + actions, max_apps=4)
+            if auto_selected_apps and len(auto_selected_apps) > 1:
+                logger.info(f"⭐ Auto-selected golden apps: {auto_selected_apps}")
+                top_triggers = self._select_balanced_tools(triggers, max_triggers, auto_selected_apps, "triggers")
+                top_actions = self._select_balanced_tools(actions, max_actions, auto_selected_apps, "actions")
+            else:
+                # Fallback to original behavior if no golden apps found
+                logger.info("⚠️ No golden apps found - using pure semantic ranking")
+                triggers.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+                actions.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+                top_triggers = triggers[:max_triggers]
+                top_actions = actions[:max_actions]
+        else:
+            # Single app selected: use original behavior
+            logger.info(f"🎯 Single app selected - using pure semantic ranking for {selected_apps[0]}")
+            triggers.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+            actions.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+            
+            top_triggers = triggers[:max_triggers]
+            top_actions = actions[:max_actions]
         
-        # Take only the top N results
-        top_triggers = triggers[:max_triggers]
-        top_actions = actions[:max_actions]
+        # Always ensure system tools are available (for schedule-based workflows)
+        self._ensure_system_tools_available(top_triggers, top_actions)
         
         # Combine and return
         prefiltered = top_triggers + top_actions
@@ -451,6 +545,215 @@ class DSLGeneratorService:
         logger.info(f"Pre-filtered results: {len(top_triggers)} triggers (from {len(triggers)}), {len(top_actions)} actions (from {len(actions)})")
         
         return prefiltered
+    
+    def _select_balanced_tools(self, tools: List[Dict[str, Any]], max_tools: int, selected_apps: List[str], tool_type: str) -> List[Dict[str, Any]]:
+        """
+        Select tools ensuring balanced representation across selected apps.
+        
+        Args:
+            tools: List of tools (triggers or actions) to select from
+            max_tools: Maximum number of tools to select
+            selected_apps: List of selected app slugs
+            tool_type: Type of tools being selected ("triggers" or "actions")
+            
+        Returns:
+            List of selected tools with balanced app representation
+        """
+        if not tools or not selected_apps:
+            return tools[:max_tools]
+        
+        # Group tools by provider/app
+        tools_by_app = {}
+        for tool in tools:
+            provider_id = tool['item'].get('provider_id', '').lower()
+            if provider_id not in tools_by_app:
+                tools_by_app[provider_id] = []
+            tools_by_app[provider_id].append(tool)
+        
+        # Sort tools within each app by similarity score
+        for app in tools_by_app:
+            tools_by_app[app].sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        
+        # Calculate tools per app (roughly equal distribution)
+        num_apps = len(selected_apps)
+        tools_per_app = max(1, max_tools // num_apps)  # At least 1 tool per app
+        remaining_tools = max_tools - (tools_per_app * num_apps)
+        
+        selected_tools = []
+        app_counts = {}
+        
+        # First pass: allocate base number of tools per app
+        for app in selected_apps:
+            app_lower = app.lower()
+            if app_lower in tools_by_app:
+                # Take up to tools_per_app tools from this app
+                app_tools = tools_by_app[app_lower][:tools_per_app]
+                selected_tools.extend(app_tools)
+                app_counts[app_lower] = len(app_tools)
+                logger.debug(f"📊 {tool_type.capitalize()} from {app}: {len(app_tools)} tools")
+            else:
+                app_counts[app_lower] = 0
+                logger.warning(f"⚠️ No {tool_type} found for selected app: {app}")
+        
+        # Second pass: distribute remaining tools to apps with highest scores
+        if remaining_tools > 0:
+            # Collect remaining tools from all apps, sorted by score
+            remaining_candidates = []
+            for app in selected_apps:
+                app_lower = app.lower()
+                if app_lower in tools_by_app:
+                    # Get tools beyond what we already selected
+                    already_selected = app_counts.get(app_lower, 0)
+                    remaining_from_app = tools_by_app[app_lower][already_selected:]
+                    remaining_candidates.extend(remaining_from_app)
+            
+            # Sort by similarity score and take the best remaining tools
+            remaining_candidates.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+            selected_tools.extend(remaining_candidates[:remaining_tools])
+        
+        # Sort final selection by similarity score
+        selected_tools.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        
+        # Log the final distribution
+        final_counts = {}
+        for tool in selected_tools:
+            app = tool['item'].get('provider_id', '').lower()
+            final_counts[app] = final_counts.get(app, 0) + 1
+        
+        logger.info(f"📊 Balanced {tool_type} selection: {dict(final_counts)} (total: {len(selected_tools)})")
+        
+        return selected_tools
+    
+    def _auto_select_golden_apps(self, tools: List[Dict[str, Any]], max_apps: int = 4) -> List[str]:
+        """
+        Auto-select the best golden apps based on semantic relevance for vague prompts.
+        
+        Args:
+            tools: List of tools (triggers + actions) from semantic search
+            max_apps: Maximum number of apps to auto-select
+            
+        Returns:
+            List of auto-selected golden app slugs
+        """
+        if not tools:
+            return []
+        
+        # Group tools by provider and calculate relevance scores
+        app_scores = {}
+        app_tool_counts = {}
+        
+        for tool in tools:
+            provider_id = tool['item'].get('provider_id', '').lower()
+            similarity_score = tool.get('similarity_score', 0.0)
+            
+            # Only consider golden toolkits
+            if provider_id in self.GOLDEN_TOOLKITS:
+                if provider_id not in app_scores:
+                    app_scores[provider_id] = 0.0
+                    app_tool_counts[provider_id] = 0
+                
+                # Accumulate scores and count tools
+                app_scores[provider_id] += similarity_score
+                app_tool_counts[provider_id] += 1
+        
+        if not app_scores:
+            logger.warning("⚠️ No golden toolkit tools found in semantic search results")
+            return []
+        
+        # Calculate average relevance score per app
+        app_avg_scores = {}
+        for app, total_score in app_scores.items():
+            tool_count = app_tool_counts[app]
+            avg_score = total_score / tool_count if tool_count > 0 else 0.0
+            app_avg_scores[app] = avg_score
+        
+        # Sort apps by average relevance score (highest first)
+        sorted_apps = sorted(app_avg_scores.items(), key=lambda x: x[1], reverse=True)
+        
+        # Take top N apps
+        selected_apps = [app for app, score in sorted_apps[:max_apps]]
+        
+        # Log the selection process
+        logger.info(f"⭐ Golden app selection process:")
+        for i, (app, score) in enumerate(sorted_apps[:max_apps]):
+            tool_count = app_tool_counts[app]
+            logger.info(f"  {i+1}. {app}: avg_score={score:.3f}, tools={tool_count}")
+        
+        if len(sorted_apps) > max_apps:
+            logger.info(f"  ... and {len(sorted_apps) - max_apps} more apps not selected")
+        
+        logger.info(f"🎯 Auto-selected {len(selected_apps)} golden apps: {selected_apps}")
+        
+        return selected_apps
+    
+    def _ensure_system_tools_available(self, top_triggers: List[Dict[str, Any]], top_actions: List[Dict[str, Any]]) -> None:
+        """
+        Ensure that system tools (like SCHEDULE_BASED trigger) are always available in the final selection.
+        
+        Args:
+            top_triggers: List of selected triggers
+            top_actions: List of selected actions
+        """
+        # Check if SCHEDULE_BASED trigger is already present
+        has_schedule_trigger = any(
+            t.get('item', {}).get('slug') == 'SCHEDULE_BASED' or 
+            t.get('item', {}).get('trigger_slug') == 'SCHEDULE_BASED'
+            for t in top_triggers
+        )
+        
+        if not has_schedule_trigger:
+            # Add SCHEDULE_BASED trigger to the top of the list
+            schedule_trigger = {
+                'item': {
+                    'type': 'trigger',
+                    'provider_id': 'system',
+                    'provider_name': 'System',
+                    'slug': 'SCHEDULE_BASED',
+                    'name': 'Schedule Based Trigger',
+                    'description': 'Trigger that runs on a schedule (cron-based)',
+                    'metadata': {'type': 'schedule_based', 'essential': True}
+                },
+                'similarity_score': 1.0  # High score to ensure it's prioritized
+            }
+            
+            # Insert at the beginning to ensure it's always available
+            top_triggers.insert(0, schedule_trigger)
+            logger.info("✅ Added SCHEDULE_BASED trigger to ensure schedule-based workflows are supported")
+    
+    def _apply_golden_toolkit_boost(self, search_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Apply priority boost to golden toolkit results.
+        
+        Args:
+            search_results: List of semantic search results
+            
+        Returns:
+            List of search results with boosted scores for golden toolkits
+        """
+        boosted_results = []
+        boosted_count = 0
+        
+        for result in search_results:
+            # Create a copy to avoid modifying the original
+            boosted_result = result.copy()
+            
+            # Check if this result is from a golden toolkit
+            provider_id = result['item'].get('provider_id', '').lower()
+            if provider_id in self.GOLDEN_TOOLKITS:
+                # Boost the similarity score by 1.5x
+                original_score = result.get('similarity_score', 0.0)
+                boosted_result['similarity_score'] = original_score * 1.5
+                boosted_count += 1
+                logger.debug(f"⭐ Boosted {provider_id} score from {original_score:.3f} to {boosted_result['similarity_score']:.3f}")
+            
+            boosted_results.append(boosted_result)
+        
+        # Sort results by boosted similarity score (highest first)
+        boosted_results.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        
+        logger.info(f"⭐ Applied priority boost to {boosted_count} golden toolkit results")
+        
+        return boosted_results
     
     async def _groq_analyze_semantic_results(self, user_prompt: str, semantic_context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -668,49 +971,53 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
             import json
             import re
             
-            # Try to extract JSON from the response
+            # ALWAYS log the raw Groq response for debugging
+            logger.info(f"🔍 Raw Groq Response (length: {len(response)}):\n{response}")
+            
+            # Use regex to find the JSON block, ignoring other text
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if not json_match:
-                logger.error("No JSON found in Groq response")
-                logger.error(f"Raw Groq Response (no JSON found):\n{response}")
+                logger.error("No JSON object found in Groq response.")
                 return []
             
             json_str = json_match.group(0)
+            logger.info(f"🔍 Extracted JSON string (length: {len(json_str)}):\n{json_str}")
             
             # Wrap JSON parsing in try-except for better error handling
             try:
                 data = json.loads(json_str)
+                logger.info(f"🔍 Successfully parsed JSON with keys: {list(data.keys())}")
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Groq JSON response: {e}")
-                logger.error(f"Raw Groq Response that failed parsing:\n{response}")
-                logger.error(f"Extracted JSON string that failed:\n{json_str}")
+                logger.error(f"Failed to decode JSON from Groq: {e}")
+                return []
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during Groq parsing: {e}")
                 return []
             
             selected_tools = []
             
-            # Parse the new format: trigger_slug and action_slugs
-            trigger_slug = data.get('trigger_slug')
-            action_slugs = data.get('action_slugs', [])
-            
-            # Add trigger if present
-            if trigger_slug and trigger_slug != 'null':
-                selected_tools.append({
-                    'slug': trigger_slug,
-                    'type': 'trigger',
-                    'reason': data.get('reasoning', '')
-                })
-            
-            # Add actions
-            for action_slug in action_slugs:
-                if action_slug:  # Skip empty strings
+            # --- NEW LOGIC: Parse selected_triggers and selected_actions arrays ---
+            # Parse triggers
+            for trigger_obj in data.get('selected_triggers', []):
+                if 'name' in trigger_obj:
                     selected_tools.append({
-                        'slug': action_slug,
-                        'type': 'action',
-                        'reason': data.get('reasoning', '')
+                        'name': trigger_obj['name'],  # Use the name for matching
+                        'type': 'trigger',
+                        'reason': trigger_obj.get('reason', '')
                     })
             
-            logger.info(f"Parsed {len(selected_tools)} selected tools from Groq response")
-            logger.info(f"Selected tools: {[t['slug'] for t in selected_tools]}")
+            # Parse actions
+            for action_obj in data.get('selected_actions', []):
+                if 'name' in action_obj:
+                    selected_tools.append({
+                        'name': action_obj['name'],  # Use the name for matching
+                        'type': 'action',
+                        'reason': action_obj.get('reason', '')
+                    })
+            # --- END OF NEW LOGIC ---
+            
+            logger.info(f"Successfully parsed {len(selected_tools)} tools from Groq response.")
+            logger.info(f"Selected tool names: {[t['name'] for t in selected_tools]}")
             return selected_tools
             
         except Exception as e:
@@ -721,56 +1028,30 @@ IMPORTANT: Use the exact tool names and toolkit names as shown in the list above
     def _filter_context_by_groq_selection(self, semantic_context: Dict[str, Any], selected_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Filter the semantic context based on Groq's tool selection."""
         
-        # --- THIS IS THE FIX ---
-        # Groq's response is less reliable on 'name' but we can trust its reasoning.
-        # The semantic context has the original, accurate slugs.
-        # We should match based on the SLUG of the tool, not its name.
-        # Note: Groq doesn't provide the slug, so we must rely on its name selection
-        # being close enough. A more robust solution would be to have Groq return slugs.
-        # For now, let's keep the current logic but be aware of its fragility.
-        # A better immediate fix is to re-examine the Groq prompt.
+        # Create sets of selected tool names for efficient lookup
+        selected_trigger_names = {t['name'] for t in selected_tools if t['type'] == 'trigger'}
+        selected_action_names = {t['name'] for t in selected_tools if t['type'] == 'action'}
         
-        # --- LET'S RE-EVALUATE THE CORE PROBLEM ---
-        # The problem isn't the filter function itself, but the Groq prompt that generates the selection.
-        # The `_build_groq_tool_analysis_prompt` asks for "exact tool name", but this is what's failing.
-        # It should be asking for the SLUG.
+        logger.info(f"Selected trigger names: {selected_trigger_names}")
+        logger.info(f"Selected action names: {selected_action_names}")
         
-        # Let's adjust the prompt first, as that is less invasive.
-        # If that fails, we can implement fuzzy matching here.
-        # (No code change in this function for now, let's focus on the prompt and the validator)
-
-        # ... keeping your existing logic for now, but the fragility is noted.
-        # The real fix is the Validator fix below.
-        
-        # --- FIXED: Now using slugs for matching instead of names ---
-        # Groq now returns slugs, so we can do exact matching
-        
-        # Create sets of selected tool slugs for efficient lookup
-        selected_trigger_slugs = {t['slug'] for t in selected_tools if t['type'] == 'trigger'}
-        selected_action_slugs = {t['slug'] for t in selected_tools if t['type'] == 'action'}
-        
-        logger.info(f"Selected trigger slugs: {selected_trigger_slugs}")
-        logger.info(f"Selected action slugs: {selected_action_slugs}")
-        
-        # Filter triggers by slug
+        # Filter triggers by name
         filtered_triggers = []
         for trigger in semantic_context.get('triggers', []):
-            trigger_slug = trigger.get('slug', '')
-            if trigger_slug in selected_trigger_slugs:
+            if trigger.get('name') in selected_trigger_names:
                 filtered_triggers.append(trigger)
-                logger.info(f"✅ Matched trigger: {trigger_slug}")
+                logger.info(f"✅ Matched trigger: {trigger.get('name')}")
             else:
-                logger.debug(f"❌ Trigger not selected: {trigger_slug}")
+                logger.debug(f"❌ Trigger not selected: {trigger.get('name')}")
         
-        # Filter actions by slug
+        # Filter actions by name
         filtered_actions = []
         for action in semantic_context.get('actions', []):
-            action_slug = action.get('slug', '')
-            if action_slug in selected_action_slugs:
+            if action.get('name') in selected_action_names:
                 filtered_actions.append(action)
-                logger.info(f"✅ Matched action: {action_slug}")
+                logger.info(f"✅ Matched action: {action.get('name')}")
             else:
-                logger.debug(f"❌ Action not selected: {action_slug}")
+                logger.debug(f"❌ Action not selected: {action.get('name')}")
         
         # Build refined context
         refined_context = {
@@ -981,14 +1262,28 @@ Now, analyze the user request provided at the top and generate the JSON response
             import json
             import re
             
-            # Try to extract JSON from the response
+            # ALWAYS log the raw Groq response for debugging
+            logger.info(f"🔍 Raw Groq Tool Selection Response (length: {len(response)}):\n{response}")
+            
+            # Use regex to find the JSON block, ignoring other text
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if not json_match:
-                logger.error("No JSON found in Groq tool selection response")
+                logger.error("No JSON object found in Groq tool selection response.")
                 return None
             
             json_str = json_match.group(0)
-            data = json.loads(json_str)
+            logger.info(f"🔍 Extracted JSON string (length: {len(json_str)}):\n{json_str}")
+            
+            # Wrap JSON parsing in try-except for better error handling
+            try:
+                data = json.loads(json_str)
+                logger.info(f"🔍 Successfully parsed JSON with keys: {list(data.keys())}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to decode JSON from Groq tool selection: {e}")
+                return None
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during Groq tool selection parsing: {e}")
+                return None
             
             return {
                 'reasoning': data.get('reasoning', ''),
@@ -998,6 +1293,7 @@ Now, analyze the user request provided at the top and generate the JSON response
             
         except Exception as e:
             logger.error(f"Failed to parse Groq tool selection response: {e}")
+            logger.error(f"Raw Groq Response:\n{response}")
             return None
     
     def _convert_tool_selection_to_catalog(self, tool_selection: Dict[str, Any], catalog_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -2033,23 +2329,31 @@ There are two kinds of trigger available:
 2. **schedule_based**: This is a generic trigger for time-based workflows. You MUST use the exact slug "SCHEDULE_BASED" for the `composio_trigger_slug` if the user's request mentions a schedule, like "every morning", "at 8 PM", "on Fridays", "weekly", or any other time-based interval.
 
 <instructions>
-1. **Trigger Type Analysis:** First, analyze the <user_request> to determine the trigger type. Is it **event_based** (starts when something happens in an app) or **schedule_based** (starts at a specific time or interval like "every day")?
+1. **Analyze the Request:** Read the <user_request> carefully.
 
-2. Design a logical, multi-step workflow.
-3. Your output MUST conform to the `template` schema.
-4. Every object in `required_inputs` MUST have a "name", "source", and "type" key.
-5. Populate the `missing_information` array for any user inputs needed.
-6. Your response MUST be a single, valid JSON object and nothing else.
-7. NEVER invent or modify toolkit_slug, composio_trigger_slug, or action_name values.
-8. ONLY use the exact values from the <available_tools> section above.
-9. ⚠️  CRITICAL: Use triggers ONLY in the "triggers" array and actions ONLY in the "actions" array. NEVER use a trigger as an action or vice versa.
-10. If you're unsure about a value, use the first available option from the list.
-11. Every parameter MUST have a "type" field - this is CRITICAL for validation.
-12. Use "string", "number", "boolean", or "array" as type values.
-13. COPY AND PASTE the exact slug/name values - do not modify them.
-14. Your JSON MUST be parseable by Python's json.loads().
-15. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
-16. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
+2. **Create a Step-by-Step Plan:** Before writing any JSON, think through the sequence of operations needed. For example: "First, the workflow needs to start when a new payment is made in Stripe. Second, I need to add that customer's details to a Google Sheet. Third, I need to send a message to Slack."
+
+3. **Select Tools for Each Step:** Based on your plan, find the best trigger and action from the <available_tools> for each step.
+
+4. **Construct the Final JSON:** Now, build the complete workflow in the specified JSON format, making sure to include an action for every step in your plan.
+
+5. **Trigger Type Analysis:** Analyze the <user_request> to determine the trigger type. Is it **event_based** (starts when something happens in an app) or **schedule_based** (starts at a specific time or interval like "every day")?
+
+6. Design a logical, multi-step workflow.
+7. Your output MUST conform to the `template` schema.
+8. Every object in `required_inputs` MUST have a "name", "source", and "type" key.
+9. Populate the `missing_information` array for any user inputs needed.
+10. Your response MUST be a single, valid JSON object and nothing else.
+11. NEVER invent or modify toolkit_slug, composio_trigger_slug, or action_name values.
+12. ONLY use the exact values from the <available_tools> section above.
+13. ⚠️  CRITICAL: Use triggers ONLY in the "triggers" array and actions ONLY in the "actions" array. NEVER use a trigger as an action or vice versa.
+14. If you're unsure about a value, use the first available option from the list.
+15. Every parameter MUST have a "type" field - this is CRITICAL for validation.
+16. Use "string", "number", "boolean", or "array" as type values.
+17. COPY AND PASTE the exact slug/name values - do not modify them.
+18. Your JSON MUST be parseable by Python's json.loads().
+19. ⚠️  CRITICAL: If no triggers are listed in <available_tools>, use this exact format: "triggers": [{{"id": "manual_trigger", "type": "manual"}}]
+20. ⚠️  CRITICAL: NEVER use "trigger_type" - always use "triggers" array format as shown above.
 
 **Rules for Trigger Selection:**
 - ⚠️  **GOLDEN RULE:** If the user's request contains ANY time-based words (e.g., "every morning", "at 8 PM", "daily", "weekly", "on Fridays", "monthly", "hourly", "at 9 AM", "every day", "every week", "every month"), you MUST use "SCHEDULE_BASED" as the `composio_trigger_slug`. This rule overrides all other keywords or application names mentioned in the prompt.
@@ -2132,9 +2436,38 @@ Now, generate the complete JSON for the user's request."""
                 schema_definition = self.context_builder._load_schema_definition()
                 
                 # Convert dictionary catalog_context to CatalogContext object
+                # Add system toolkit to the context for response parsing as well
+                providers_list_for_parsing = list(catalog_context.get('providers', {}).values())
+                triggers_list_for_parsing = catalog_context.get('triggers', []).copy()
+                
+                # Add system provider if not already present
+                system_provider_for_parsing = {
+                    'slug': 'system',
+                    'name': 'System',
+                    'description': 'System-level tools for scheduling and core logic.',
+                    'triggers': [{
+                        'slug': 'SCHEDULE_BASED',
+                        'name': 'Schedule Based Trigger',
+                        'description': 'A trigger that runs on a schedule.'
+                    }],
+                    'actions': []
+                }
+                if not any(p.get('slug') == 'system' for p in providers_list_for_parsing):
+                    providers_list_for_parsing.append(system_provider_for_parsing)
+                
+                # Add system trigger if not already present
+                system_trigger_for_parsing = {
+                    'slug': 'SCHEDULE_BASED',
+                    'name': 'Schedule Based Trigger',
+                    'description': 'A trigger that runs on a schedule.',
+                    'toolkit_slug': 'system'
+                }
+                if not any(t.get('slug') == 'SCHEDULE_BASED' for t in triggers_list_for_parsing):
+                    triggers_list_for_parsing.append(system_trigger_for_parsing)
+                
                 catalog_context_obj = CatalogContext(
-                    available_providers=list(catalog_context.get('providers', {}).values()),
-                    available_triggers=catalog_context.get('triggers', []),
+                    available_providers=providers_list_for_parsing,
+                    available_triggers=triggers_list_for_parsing,
                     available_actions=catalog_context.get('actions', []),
                     provider_categories=[]  # Not used in this context
                 )
@@ -2230,6 +2563,21 @@ Now, generate the complete JSON for the user's request."""
                     triggers_list = catalog_context.get('triggers', [])
                     actions_list = catalog_context.get('actions', [])
                     
+                    # --- ADD THIS BLOCK ---
+                    # Create a definition for the virtual "system" toolkit
+                    system_provider = {
+                        'slug': 'system',
+                        'name': 'System',
+                        'description': 'System-level tools for scheduling and core logic.',
+                        'triggers': [{
+                            'slug': 'SCHEDULE_BASED',
+                            'name': 'Schedule Based Trigger',
+                            'description': 'A trigger that runs on a schedule.'
+                        }],
+                        'actions': []  # System provider has no actions
+                    }
+                    # --- END OF BLOCK ---
+                    
                     providers_list_for_validation = []
                     for slug, provider_data in providers_dict_for_validation.items():
                         # Ensure each provider object has a 'slug' field for the validator
@@ -2244,10 +2592,25 @@ Now, generate the complete JSON for the user's request."""
                         provider_with_slug['actions'] = provider_actions
                         
                         providers_list_for_validation.append(provider_with_slug)
+                    
+                    # Add the system provider to the list of providers for the validator
+                    if not any(p['slug'] == 'system' for p in providers_list_for_validation):
+                        providers_list_for_validation.append(system_provider)
+
+                    # Add system trigger to the triggers list for validation
+                    triggers_list_for_validation = catalog_context.get('triggers', []).copy()
+                    system_trigger = {
+                        'slug': 'SCHEDULE_BASED',
+                        'name': 'Schedule Based Trigger',
+                        'description': 'A trigger that runs on a schedule.',
+                        'toolkit_slug': 'system'
+                    }
+                    if not any(t.get('slug') == 'SCHEDULE_BASED' for t in triggers_list_for_validation):
+                        triggers_list_for_validation.append(system_trigger)
 
                     catalog_context_for_validation = CatalogContext(
                         available_providers=providers_list_for_validation,  # Pass the list here
-                        available_triggers=catalog_context.get('triggers', []),
+                        available_triggers=triggers_list_for_validation,
                         available_actions=catalog_context.get('actions', []),
                         provider_categories=[]
                     )
@@ -2442,3 +2805,126 @@ Now, generate the complete JSON for the user's request."""
     def update_ai_model(self, new_model: str):
         """Update the AI client model"""
         self.ai_client.update_model(new_model)
+    
+    async def _detect_vagueness(self, user_prompt: str) -> Optional[Dict[str, str]]:
+        """
+        Detect if a user prompt is too vague and return the reason.
+        
+        Args:
+            user_prompt: The user's natural language prompt
+            
+        Returns:
+            Dict with 'reason' key if vague, None if specific enough
+        """
+        prompt_lower = user_prompt.lower().strip()
+        
+        # Check for extremely short prompts
+        if len(prompt_lower.split()) < 3:
+            return {'reason': 'too_short'}
+        
+        # Check for generic requests without specific actions
+        vague_phrases = [
+            'help me', 'what can you do', 'show me', 'give me', 'i need',
+            'create something', 'make a workflow', 'build something',
+            'automate', 'workflow', 'integration', 'connect'
+        ]
+        
+        # Check if prompt is just generic phrases without specifics
+        words = prompt_lower.split()
+        if len(words) <= 5 and any(phrase in prompt_lower for phrase in vague_phrases):
+            return {'reason': 'too_generic'}
+        
+        # Check for prompts that don't mention specific apps or actions
+        specific_indicators = [
+            'gmail', 'slack', 'stripe', 'notion', 'google', 'microsoft',
+            'send', 'receive', 'create', 'update', 'delete', 'schedule',
+            'email', 'message', 'notification', 'alert', 'report'
+        ]
+        
+        has_specific_indicator = any(indicator in prompt_lower for indicator in specific_indicators)
+        if not has_specific_indicator and len(words) < 8:
+            return {'reason': 'no_specific_apps_or_actions'}
+        
+        return None
+    
+    def _get_exemplar_workflows(self, reason: str) -> GenerationResponse:
+        """
+        Return pre-defined, high-quality DSL templates for vague prompts.
+        
+        Args:
+            reason: The reason why the prompt was considered vague
+            
+        Returns:
+            GenerationResponse with exemplar workflows
+        """
+        exemplar_workflows = {
+            'too_short': {
+                "triggers": [{"id": "manual_trigger", "type": "manual"}],
+                "actions": [
+                    {
+                        "id": "gmail_send_email",
+                        "action_name": "gmail_send_email",
+                        "toolkit_slug": "gmail",
+                        "parameters": {
+                            "to": {"type": "string", "source": "user_input"},
+                            "subject": {"type": "string", "source": "user_input"},
+                            "body": {"type": "string", "source": "user_input"}
+                        }
+                    }
+                ],
+                "required_inputs": [
+                    {"name": "to", "source": "user_input", "type": "string"},
+                    {"name": "subject", "source": "user_input", "type": "string"},
+                    {"name": "body", "source": "user_input", "type": "string"}
+                ],
+                "missing_information": []
+            },
+            'too_generic': {
+                "triggers": [{"id": "schedule_trigger", "type": "schedule_based", "composio_trigger_slug": "SCHEDULE_BASED"}],
+                "actions": [
+                    {
+                        "id": "slack_send_message",
+                        "action_name": "slack_send_message",
+                        "toolkit_slug": "slack",
+                        "parameters": {
+                            "channel": {"type": "string", "source": "user_input"},
+                            "message": {"type": "string", "source": "user_input"}
+                        }
+                    }
+                ],
+                "required_inputs": [
+                    {"name": "channel", "source": "user_input", "type": "string"},
+                    {"name": "message", "source": "user_input", "type": "string"}
+                ],
+                "missing_information": []
+            },
+            'no_specific_apps_or_actions': {
+                "triggers": [{"id": "gmail_new_email", "type": "event_based", "composio_trigger_slug": "GMAIL_NEW_EMAIL_TRIGGER"}],
+                "actions": [
+                    {
+                        "id": "slack_send_message",
+                        "action_name": "slack_send_message",
+                        "toolkit_slug": "slack",
+                        "parameters": {
+                            "channel": {"type": "string", "source": "user_input"},
+                            "message": {"type": "string", "source": "template", "value": "New email received: {{trigger.subject}}"}
+                        }
+                    }
+                ],
+                "required_inputs": [
+                    {"name": "channel", "source": "user_input", "type": "string"}
+                ],
+                "missing_information": []
+            }
+        }
+        
+        workflow = exemplar_workflows.get(reason, exemplar_workflows['too_short'])
+        
+        return GenerationResponse(
+            success=True,
+            dsl_template=workflow,
+            missing_fields=workflow.get('missing_information', []),
+            confidence=0.8,  # High confidence for exemplar workflows
+            is_exemplar=True,
+            exemplar_reason=reason
+        )
