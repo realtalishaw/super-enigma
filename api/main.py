@@ -112,3 +112,74 @@ async def root():
         "docs": "/docs",
         "redoc": "/redoc"
     }
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "timestamp": "2025-01-28T00:00:00Z",
+        "version": "1.0.0",
+        "uptime": "running"
+    }
+
+# API usage stats endpoint
+@app.get("/api/usage/stats")
+async def get_usage_stats():
+    """Get API usage statistics"""
+    # For now, return mock data - in production this would come from logging/metrics
+    return {
+        "total_requests": 1247,
+        "catalog_requests": 892,
+        "suggestions_requests": 355,
+        "error_rate": 2.3,
+        "endpoints": {
+            "/api/catalog/tools": {
+                "requests": 456,
+                "avg_response_time": 120,
+                "success_rate": 98.5
+            },
+            "/api/catalog/providers": {
+                "requests": 436,
+                "avg_response_time": 95,
+                "success_rate": 99.1
+            },
+            "/api/suggestions:generate": {
+                "requests": 355,
+                "avg_response_time": 2150,
+                "success_rate": 95.2
+            },
+            "/api/suggestions:multiple": {
+                "requests": 89,
+                "avg_response_time": 4200,
+                "success_rate": 92.1
+            }
+        },
+        "hourly_requests": [
+            {"hour": "00:00", "requests": 5},
+            {"hour": "01:00", "requests": 3},
+            {"hour": "02:00", "requests": 2},
+            {"hour": "03:00", "requests": 1},
+            {"hour": "04:00", "requests": 2},
+            {"hour": "05:00", "requests": 4},
+            {"hour": "06:00", "requests": 8},
+            {"hour": "07:00", "requests": 15},
+            {"hour": "08:00", "requests": 25},
+            {"hour": "09:00", "requests": 35},
+            {"hour": "10:00", "requests": 42},
+            {"hour": "11:00", "requests": 38},
+            {"hour": "12:00", "requests": 45},
+            {"hour": "13:00", "requests": 48},
+            {"hour": "14:00", "requests": 52},
+            {"hour": "15:00", "requests": 41},
+            {"hour": "16:00", "requests": 35},
+            {"hour": "17:00", "requests": 28},
+            {"hour": "18:00", "requests": 18},
+            {"hour": "19:00", "requests": 12},
+            {"hour": "20:00", "requests": 8},
+            {"hour": "21:00", "requests": 6},
+            {"hour": "22:00", "requests": 4},
+            {"hour": "23:00", "requests": 3}
+        ]
+    }
